@@ -44,5 +44,3 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 
-# Sensitive API config (secrets)
-secrets.json
