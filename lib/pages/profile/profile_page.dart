@@ -11,18 +11,17 @@ import 'study_records_page.dart';
 import 'about_page.dart';
 import 'feedback_page.dart';
 
-/// 个人中心页 / 我的（参考 Android 版 ProfileFragment）
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text(
-          '我的',
-          style: TextStyle(fontWeight: FontWeight.w600),
-        ),
+        title: const Text('我的', style: TextStyle(fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+        backgroundColor: AppColors.bgWhite,
+        elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(0.5),
           child: Container(color: AppColors.bgDivider, height: 0.5),
@@ -31,62 +30,61 @@ class ProfilePage extends StatelessWidget {
       body: Consumer<AuthProvider>(
         builder: (context, authProvider, _) {
           return ListView(
+            padding: const EdgeInsets.all(12),
             children: [
               // 用户信息卡片
               _buildUserCard(context, authProvider),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
 
-              // 账户菜单
-              _buildMenuSection(context, '账户', [
-                _MenuItemData(
-                  icon: Icons.phone_android,
-                  label: '绑定手机号',
-                  badge: authProvider.userInfo?.phone != null ? '已绑定' : '未绑定',
-                  onTap: () => _navigate(context, const BindPhonePage()),
-                ),
-                if (authProvider.userInfo?.phone != null)
-                  _MenuItemData(
-                    icon: Icons.lock_outline,
-                    label: '修改密码',
-                    onTap: () => _navigate(context, const ChangePasswordPage()),
+              // 账户功能菜单（仅登录后显示）
+              if (authProvider.isLoggedIn) ...[
+                _buildMenuCard([
+                  _MenuItem(
+                    imagePath: 'assets/images/mine-bind-phone.png',
+                    label: '绑定手机号',
+                    badge: authProvider.userInfo?.phone != null ? '已绑定' : '未绑定',
+                    badgeBound: authProvider.userInfo?.phone != null,
+                    onTap: () => _navigate(context, const BindPhonePage()),
                   ),
-                _MenuItemData(
-                  icon: Icons.assignment_outlined,
-                  label: '学习记录',
-                  onTap: () => _navigate(context, const StudyRecordsPage()),
-                ),
-              ]),
-
-              const SizedBox(height: 8),
+                  if (authProvider.userInfo?.phone != null)
+                    _MenuItem(
+                      imagePath: 'assets/images/mine-change-pwd.png',
+                      label: '修改密码',
+                      onTap: () => _navigate(context, const ChangePasswordPage()),
+                    ),
+                  _MenuItem(
+                    imagePath: 'assets/images/mine-study.png',
+                    label: '学习记录',
+                    onTap: () => _navigate(context, const StudyRecordsPage()),
+                  ),
+                ]),
+                const SizedBox(height: 10),
+              ],
 
               // 通用菜单
-              _buildMenuSection(context, '其他', [
-                _MenuItemData(
-                  icon: Icons.info_outline,
+              _buildMenuCard([
+                _MenuItem(
+                  imagePath: 'assets/images/mine-setting.png',
+                  label: '设置',
+                  onTap: () {},
+                ),
+                _MenuItem(
+                  imagePath: 'assets/images/mine-about-us.png',
                   label: '关于我们',
                   onTap: () => _navigate(context, const AboutPage()),
                 ),
-                _MenuItemData(
-                  icon: Icons.feedback_outlined,
+                _MenuItem(
+                  imagePath: 'assets/images/mine-hao-ping.png',
                   label: '问题反馈',
                   onTap: () => _navigate(context, const FeedbackPage()),
                 ),
               ]),
 
-              // 退出登录按钮
-              if (authProvider.isLoggedIn)
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: ElevatedButton(
-                    onPressed: () => _showLogoutDialog(context, authProvider),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.bgWhite,
-                      foregroundColor: AppColors.wrongRed,
-                      side: const BorderSide(color: AppColors.wrongRed),
-                    ),
-                    child: const Text('退出登录'),
-                  ),
-                ),
+              // 退出登录
+              if (authProvider.isLoggedIn) ...[
+                const SizedBox(height: 10),
+                _buildLogoutButton(context, authProvider),
+              ],
             ],
           );
         },
@@ -94,189 +92,184 @@ class ProfilePage extends StatelessWidget {
     );
   }
 
-  /// 用户信息卡片（已登录/未登录两种状态）
   Widget _buildUserCard(BuildContext context, AuthProvider authProvider) {
-    if (authProvider.isLoggedIn) {
-      // 已登录状态
-      return Container(
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
         color: AppColors.bgWhite,
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            // 头像
-            GestureDetector(
-              onTap: () => _navigate(context, const EditProfilePage()),
-              child: CircleAvatar(
-                radius: 32,
-                backgroundColor: AppColors.bgGray,
-                backgroundImage: authProvider.userInfo?.avatarUrl != null &&
-                        authProvider.userInfo!.avatarUrl!.isNotEmpty
-                    ? CachedNetworkImageProvider(authProvider.userInfo!.avatarUrl!)
-                    : null,
-                child: authProvider.userInfo?.avatarUrl == null ||
-                        authProvider.userInfo!.avatarUrl!.isEmpty
-                    ? const Icon(Icons.person, size: 32, color: AppColors.textHint)
-                    : null,
-              ),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
+        ],
+      ),
+      child: authProvider.isLoggedIn
+          ? _buildLoggedInUser(context, authProvider)
+          : _buildNotLoggedIn(context),
+    );
+  }
+
+  Widget _buildLoggedInUser(BuildContext context, AuthProvider authProvider) {
+    return Row(
+      children: [
+        // 头像
+        GestureDetector(
+          onTap: () => _navigate(context, const EditProfilePage()),
+          child: Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AppColors.bgGray,
+              boxShadow: const [BoxShadow(color: Color(0x10000000), blurRadius: 6, offset: Offset(0, 2))],
             ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    authProvider.displayName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    authProvider.displayId,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      color: AppColors.textHint,
-                    ),
-                  ),
-                ],
-              ),
+            child: ClipOval(
+              child: authProvider.userInfo?.avatarUrl?.isNotEmpty == true
+                  ? CachedNetworkImage(
+                      imageUrl: authProvider.userInfo!.avatarUrl!,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
+                      errorWidget: (_, __, ___) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
+                    )
+                  : Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
             ),
-            // 编辑按钮
-            GestureDetector(
-              onTap: () => _navigate(context, const EditProfilePage()),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  border: Border.all(color: AppColors.bgDivider),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: const Text(
-                  '编辑资料',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: AppColors.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          ],
+          ),
         ),
-      );
-    }
-
-    // 未登录状态
-    return Container(
-      color: AppColors.bgWhite,
-      padding: const EdgeInsets.symmetric(vertical: 32),
-      child: Column(
-        children: [
-          CircleAvatar(
-            radius: 36,
-            backgroundColor: AppColors.bgGray,
-            child: const Icon(Icons.person, size: 36, color: AppColors.textHint),
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            '欢迎来到猴哥星球',
-            style: TextStyle(
-              fontSize: 16,
-              color: AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const LoginPage()),
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              minimumSize: const Size(180, 44),
-            ),
-            child: const Text('立即登录'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 带标题的菜单区域
-  Widget _buildMenuSection(
-      BuildContext context, String title, List<_MenuItemData> items) {
-    if (items.isEmpty) return const SizedBox();
-    return Container(
-      color: AppColors.bgWhite,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (title.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: AppColors.textHint,
-                ),
+        const SizedBox(width: 14),
+        // 用户信息
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                authProvider.displayName,
+                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
               ),
+              const SizedBox(height: 4),
+              Text(
+                'ID: ${authProvider.userInfo?.username ?? authProvider.userInfo?.id ?? ''}',
+                style: const TextStyle(fontSize: 13, color: AppColors.textHint),
+              ),
+            ],
+          ),
+        ),
+        // 编辑按钮
+        GestureDetector(
+          onTap: () => _navigate(context, const EditProfilePage()),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: const Color(0x1407C160),
+              borderRadius: BorderRadius.circular(20),
             ),
-          ...items.map((item) => _buildMenuItem(context, item)),
+            child: const Text('编辑', style: TextStyle(fontSize: 13, color: AppColors.primary)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildNotLoggedIn(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 6),
+        ClipOval(
+          child: Image.asset('assets/images/default-avatar.png', width: 60, height: 60, fit: BoxFit.cover),
+        ),
+        const SizedBox(height: 10),
+        const Text('登录后享受更多功能', style: TextStyle(fontSize: 14, color: AppColors.textHint)),
+        const SizedBox(height: 14),
+        GestureDetector(
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LoginPage())),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 11),
+            decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(24)),
+            child: const Text('立即登录', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.white)),
+          ),
+        ),
+        const SizedBox(height: 6),
+      ],
+    );
+  }
+
+  Widget _buildMenuCard(List<_MenuItem> items) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.bgWhite,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: const [
+          BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2)),
         ],
+      ),
+      child: Column(
+        children: items.asMap().entries.map((entry) {
+          final index = entry.key;
+          final item = entry.value;
+          return Column(
+            children: [
+              _buildMenuItem(item),
+              if (index < items.length - 1)
+                const Divider(height: 1, indent: 56, endIndent: 0, color: Color(0xFFF0F0F0)),
+            ],
+          );
+        }).toList(),
       ),
     );
   }
 
-  /// 单个菜单项（参考 Android 版 item_profile_menu.xml）
-  Widget _buildMenuItem(BuildContext context, _MenuItemData item) {
+  Widget _buildMenuItem(_MenuItem item) {
     return GestureDetector(
       onTap: item.onTap,
       child: Container(
-        color: AppColors.bgWhite,
-        child: Column(
+        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
           children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Icon(item.icon, color: AppColors.textSecondary, size: 22),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      child: Text(
-                        item.label,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                  if (item.badge != null)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppColors.bgGray,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Text(
-                        item.badge!,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: AppColors.textHint,
-                        ),
-                      ),
-                    ),
-                  const SizedBox(width: 4),
-                  const Icon(Icons.chevron_right, color: AppColors.textHint, size: 20),
-                ],
-              ),
+            Container(
+              width: 28,
+              height: 28,
+              alignment: Alignment.center,
+              child: Image.asset(item.imagePath, width: 22, height: 22, fit: BoxFit.contain),
             ),
-            const Divider(height: 1, indent: 50),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(item.label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary)),
+            ),
+            if (item.badge != null)
+              Container(
+                margin: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: item.badgeBound == true ? const Color(0x1407C160) : const Color(0xFFF0F0F0),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  item.badge!,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: item.badgeBound == true ? AppColors.primary : AppColors.textHint,
+                  ),
+                ),
+              ),
+            Image.asset('assets/images/mine-arrow-right.png', width: 16, height: 16, color: const Color(0xFFCCCCCC)),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context, AuthProvider authProvider) {
+    return GestureDetector(
+      onTap: () => _showLogoutDialog(context, authProvider),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 15),
+        decoration: BoxDecoration(
+          color: AppColors.bgWhite,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 8, offset: Offset(0, 2))],
+        ),
+        child: const Center(
+          child: Text('退出登录', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFFFF4D4F))),
         ),
       ),
     );
@@ -293,16 +286,13 @@ class ProfilePage extends StatelessWidget {
         title: const Text('提示'),
         content: const Text('确定要退出登录吗？'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('取消'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
               authProvider.logout();
             },
-            child: const Text('确定', style: TextStyle(color: AppColors.wrongRed)),
+            child: const Text('确定', style: TextStyle(color: Color(0xFFFF4D4F))),
           ),
         ],
       ),
@@ -310,16 +300,18 @@ class ProfilePage extends StatelessWidget {
   }
 }
 
-class _MenuItemData {
-  final IconData icon;
+class _MenuItem {
+  final String imagePath;
   final String label;
   final String? badge;
+  final bool? badgeBound;
   final VoidCallback onTap;
 
-  _MenuItemData({
-    required this.icon,
+  _MenuItem({
+    required this.imagePath,
     required this.label,
     this.badge,
+    this.badgeBound,
     required this.onTap,
   });
 }

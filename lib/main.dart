@@ -3,9 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'constants/app_colors.dart';
 import 'pages/main_tabs.dart';
+import 'pages/profile/login_page.dart';
 import 'providers/auth_provider.dart';
 import 'providers/exam_provider.dart';
+import 'services/auth_event.dart';
 import 'services/auth_storage.dart';
+
+// 全局导航 Key，供 HTTP 拦截器在 Token 过期时跳转登录页使用
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,6 +24,18 @@ void main() {
   ));
 
   final authStorage = AuthStorage();
+
+  // 登录过期时：清除 AuthProvider 状态 + 回到主页再弹出登录页（避免黑屏）
+  AuthEvent.onExpired(() {
+    final ctx = navigatorKey.currentContext;
+    if (ctx != null) {
+      Provider.of<AuthProvider>(ctx, listen: false).logout();
+    }
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginPage()),
+      (route) => route.isFirst, // 保留 MainTabs 作为根路由，返回不黑屏
+    );
+  });
 
   runApp(
     MultiProvider(
@@ -88,6 +105,7 @@ class MonkeysPlanetApp extends StatelessWidget {
           hintStyle: const TextStyle(color: AppColors.textHint, fontSize: 15),
         ),
       ),
+      navigatorKey: navigatorKey,
       home: const MainTabs(),
     );
   }

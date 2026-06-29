@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import '../constants/api_config.dart';
+import 'auth_event.dart';
 import 'auth_storage.dart';
 import 'crypto_service.dart';
 
@@ -20,10 +21,11 @@ class HttpClient {
       },
     ));
 
-    // 添加拦截器：签名 → Token → 解密
+    // 添加拦截器：签名 → Token → 解密 → 登录过期检测
     _dio.interceptors.add(_SignInterceptor());
     _dio.interceptors.add(_TokenInterceptor(_authStorage));
     _dio.interceptors.add(_ExamDecryptInterceptor());
+    _dio.interceptors.add(_AuthExpiredInterceptor());
     _dio.interceptors.add(LogInterceptor(
       requestBody: true,
       responseBody: true,
@@ -76,7 +78,9 @@ class _SignInterceptor extends Interceptor {
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
-    final path = options.path;
+    // 与 Android 版 OkHttp 的 request.url.encodedPath 保持一致，
+    // 必须包含前导 /（e.g. "/mp/exam/practice/start"）
+    final path = options.path.startsWith('/') ? options.path : '/${options.path}';
 
     // MD5(SIGN_KEY + timestamp + path)
     final sign = _md5('${ApiConfig.signKey}$timestamp$path');
@@ -144,4 +148,33 @@ class _ExamDecryptInterceptor extends Interceptor {
     }
     handler.next(response);
   }
+}
+
+/// 登录过期拦截器：检测 code==500/401 且 msg 含过期关键词，通过 AuthEvent 通知外部处理
+class _AuthExpiredInterceptor extends Interceptor {
+  bool _notifying = false;
+
+  _AuthExpiredInterceptor();
+
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    final data = response.data;
+    if (data is Map<String, dynamic>) {
+      final code = data['code'];
+      final msg = (data['msg'] as String?) ?? '';
+      if ((code == 500 || code == 401) && _isExpiredMsg(msg) && !_notifying) {
+        _notifying = true;
+        AuthEvent.notifyExpired();
+        // 3 秒内不重复触发，防止并发请求多次弹出登录页
+        Future.delayed(const Duration(seconds: 3), () => _notifying = false);
+      }
+    }
+    handler.next(response);
+  }
+
+  bool _isExpiredMsg(String msg) =>
+      msg.contains('过期') ||
+      msg.contains('未登录') ||
+      msg.contains('请重新登录') ||
+      msg.contains('登录已过期');
 }

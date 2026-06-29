@@ -140,22 +140,43 @@ class ExamService {
     );
   }
 
-  /// 获取收藏列表
-  Future<ApiResponse<List<Question>>> getFavorites() async {
-    final response = await _client.get('mp/exam/favorites');
+  /// 获取收藏列表（bankId 可选，不传则返回全库）
+  Future<ApiResponse<List<Question>>> getFavorites({int? bankId}) async {
+    final params = bankId != null ? {'bankId': bankId} : null;
+    final response = await _client.get('mp/exam/favorites', queryParameters: params);
     return ApiResponse.fromJson(
       response.data as Map<String, dynamic>,
-      (data) => (data as List).map((e) => Question.fromJson(e)).toList(),
+      (data) => (data as List).map((e) {
+        // API 返回 { question: {...}, ... }，取嵌套 question；若无则直接用外层
+        final map = e as Map<String, dynamic>;
+        final inner = map['question'] as Map<String, dynamic>?;
+        return Question.fromJson(inner ?? map);
+      }).toList(),
     );
   }
 
-  /// 获取错题列表
-  Future<ApiResponse<List<Question>>> getWrongs() async {
-    final response = await _client.get('mp/exam/wrongs');
+  /// 获取错题列表（bankId 可选，不传则返回全库）
+  Future<ApiResponse<List<Question>>> getWrongs({int? bankId}) async {
+    final params = bankId != null ? {'bankId': bankId} : null;
+    final response = await _client.get('mp/exam/wrongs', queryParameters: params);
     return ApiResponse.fromJson(
       response.data as Map<String, dynamic>,
-      (data) => (data as List).map((e) => Question.fromJson(e)).toList(),
+      (data) => (data as List).map((e) {
+        // API 返回 { question: {...}, ... }，取嵌套 question；若无则直接用外层
+        final map = e as Map<String, dynamic>;
+        final inner = map['question'] as Map<String, dynamic>?;
+        return Question.fromJson(inner ?? map);
+      }).toList(),
     );
+  }
+
+  /// 移除错题
+  Future<ApiResponse<dynamic>> removeWrong({required int questionId}) async {
+    final response = await _client.post(
+      'mp/exam/wrongs/remove',
+      data: {'questionId': questionId},
+    );
+    return ApiResponse.fromJson(response.data as Map<String, dynamic>, (d) => d);
   }
 
   /// 题目纠错反馈

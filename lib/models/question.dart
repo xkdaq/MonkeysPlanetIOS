@@ -8,6 +8,8 @@ class Question {
   final String? answer;
   final String? analysis;
   final Map<String, String>? optionsMap;
+  final String? categoryName; // 分类名称，展示为标签
+  final List<String>? tags;   // 后台标签列表
 
   Question({
     required this.id,
@@ -17,6 +19,8 @@ class Question {
     this.answer,
     this.analysis,
     this.optionsMap,
+    this.categoryName,
+    this.tags,
   });
 
   factory Question.fromJson(Map<String, dynamic> json) {
@@ -29,6 +33,8 @@ class Question {
       analysis: json['analysis'] as String?,
       optionsMap: (json['optionsMap'] as Map<String, dynamic>?)
           ?.map((k, v) => MapEntry(k, v.toString())),
+      categoryName: json['categoryName'] as String?,
+      tags: (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
     );
   }
 

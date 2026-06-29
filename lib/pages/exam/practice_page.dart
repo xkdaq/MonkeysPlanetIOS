@@ -1,17 +1,19 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../models/question.dart';
 import '../../providers/exam_provider.dart';
+import '../profile/login_page.dart';
+import '../../widgets/html_content.dart';
 import '../../widgets/loading_indicator.dart';
 
-/// 刷题页 - 核心答题页面（参考 Android 版 PracticeActivity）
 class PracticePage extends StatefulWidget {
   final int bankId;
   final int? categoryId;
-  final int practiceType; // 1-顺序 2-随机 3-专项
-  final String? mode; // 'wrong' 或 'favorite'，用于错题/收藏模式
+  final int practiceType;
+  final String? mode;
   final int? startIndex;
 
   const PracticePage({
@@ -30,7 +32,7 @@ class PracticePage extends StatefulWidget {
 class _PracticePageState extends State<PracticePage> {
   List<Question> _questions = [];
   int _currentIndex = 0;
-  bool _isAnswerMode = true; // true-答题模式 false-背题模式
+  bool _isAnswerMode = true;
   bool _showAnswer = false;
   String? _userAnswer;
   bool _isCorrect = false;
@@ -40,15 +42,16 @@ class _PracticePageState extends State<PracticePage> {
   String? _errorMessage;
   bool _isFavorite = false;
   bool _loadingFavorite = false;
+  bool _removingWrong = false;
   DateTime _startTime = DateTime.now();
 
   // 多选题
-  final Set<String> _selectedMultipleOptions = {};
-  bool _multipleSubmitted = false;
+  final Set<String> _multiSelected = {};
 
-  // 错题/收藏模式
   bool get _isWrongMode => widget.mode == 'wrong';
   bool get _isFavoriteMode => widget.mode == 'favorite';
+  bool get _isLast => _currentIndex >= _questions.length - 1;
+  Question get _current => _questions[_currentIndex];
 
   @override
   void initState() {
@@ -58,343 +61,325 @@ class _PracticePageState extends State<PracticePage> {
   }
 
   Future<void> _loadQuestions() async {
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
+    setState(() { _isLoading = true; _errorMessage = null; });
     try {
-      final examProvider = context.read<ExamProvider>();
-
+      final provider = context.read<ExamProvider>();
       if (_isWrongMode) {
-        await examProvider.loadWrongQuestions();
-        _questions = examProvider.wrongQuestions;
+        await provider.loadWrongQuestions(bankId: widget.bankId);
+        if (!mounted) return;
+        _questions = List.from(provider.wrongQuestions);
       } else if (_isFavoriteMode) {
-        await examProvider.loadFavoriteQuestions();
-        _questions = examProvider.favoriteQuestions;
+        await provider.loadFavoriteQuestions(bankId: widget.bankId);
+        if (!mounted) return;
+        _questions = List.from(provider.favoriteQuestions);
       } else {
-        final questions = await examProvider.startPractice(
+        final qs = await provider.startPractice(
           bankId: widget.bankId,
           categoryId: widget.categoryId,
           practiceType: widget.practiceType,
         );
-        if (questions != null) {
-          _questions = questions;
+        if (qs != null) {
+          _questions = qs;
+        } else {
+          final err = provider.practiceError ?? '';
+          if (err.contains('请先登录') || err.contains('未登录')) {
+            if (mounted) {
+              Navigator.of(context).pushReplacement(MaterialPageRoute(builder: (_) => const LoginPage()));
+            }
+            return;
+          }
+          setState(() { _errorMessage = err.isNotEmpty ? err : '暂无题目'; _isLoading = false; });
+          return;
         }
       }
-
       if (_questions.isEmpty) {
-        setState(() {
-          _errorMessage = '暂无题目';
-          _isLoading = false;
-        });
+        setState(() { _errorMessage = '暂无题目'; _isLoading = false; });
         return;
       }
-
-      // 设置初始索引
       if (widget.startIndex != null && widget.startIndex! < _questions.length) {
         _currentIndex = widget.startIndex!;
       }
-
-      // 检查当前题目收藏状态
-      await _checkFavoriteStatus();
-
+      await _checkFavorite();
       setState(() => _isLoading = false);
     } catch (e) {
-      setState(() {
-        _errorMessage = '加载失败: $e';
-        _isLoading = false;
-      });
+      setState(() { _errorMessage = '加载失败'; _isLoading = false; });
     }
   }
 
-  Future<void> _checkFavoriteStatus() async {
-    if (_currentIndex < _questions.length && mounted) {
-      final examProvider = context.read<ExamProvider>();
-      final isFav = await examProvider.checkFavorite(_questions[_currentIndex].id);
-      if (mounted) {
-        setState(() => _isFavorite = isFav);
-      }
-    }
+  Future<void> _checkFavorite() async {
+    if (_questions.isEmpty || !mounted) return;
+    final isFav = await context.read<ExamProvider>().checkFavorite(_current.id);
+    if (mounted) setState(() => _isFavorite = isFav);
   }
-
-  Question get _currentQuestion => _questions[_currentIndex];
-  bool get _isLast => _currentIndex >= _questions.length - 1;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Text('${_currentIndex + 1}/${_questions.length}'),
-        actions: [
-          // 答题/背题模式切换
-          Container(
-            margin: const EdgeInsets.only(right: 8),
-            decoration: BoxDecoration(
-              color: AppColors.bgGray,
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Row(
-              children: [
-                GestureDetector(
-                  onTap: () => setState(() => _isAnswerMode = true),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: _isAnswerMode ? AppColors.primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '答题',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: _isAnswerMode ? Colors.white : AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
+      backgroundColor: AppColors.background,
+      body: SafeArea(
+        child: _isLoading
+            ? const LoadingIndicator(message: '加载题目中...')
+            : _errorMessage != null
+                ? _buildError()
+                : Column(
+                    children: [
+                      _buildHeader(),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          padding: const EdgeInsets.all(13),
+                          child: _buildBody(),
+                        ),
                       ),
-                    ),
+                      _buildFooter(),
+                    ],
                   ),
-                ),
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      _isAnswerMode = false;
-                      _showAnswer = true;
-                    });
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: !_isAnswerMode ? AppColors.primary : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Text(
-                      '背题',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: !_isAnswerMode ? Colors.white : AppColors.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(2),
-          child: _questions.isNotEmpty
-              ? LinearProgressIndicator(
-                  value: (_currentIndex + 1) / _questions.length,
-                  backgroundColor: AppColors.bgDivider,
-                  valueColor:
-                      const AlwaysStoppedAnimation<Color>(AppColors.primary),
-                )
-              : const SizedBox(),
-        ),
       ),
-      body: _buildBody(),
-      bottomNavigationBar: _buildBottomBar(),
     );
   }
 
-  Widget _buildBody() {
-    if (_isLoading) {
-      return const LoadingIndicator(message: '加载题目中...');
-    }
+  // ──────────── Header ────────────
 
-    if (_errorMessage != null) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
-            const SizedBox(height: 12),
-            Text(_errorMessage!, style: const TextStyle(color: AppColors.textSecondary)),
-            const SizedBox(height: 16),
-            ElevatedButton.icon(
-              onPressed: _loadQuestions,
-              icon: const Icon(Icons.refresh, size: 18),
-              label: const Text('重试'),
+  Widget _buildHeader() {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(14, 10, 14, 0),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: const Icon(Icons.arrow_back_ios_new, size: 17, color: AppColors.textPrimary),
+              ),
+              Expanded(
+                child: Center(
+                  child: _questions.isEmpty
+                      ? const SizedBox()
+                      : Row(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.baseline,
+                          textBaseline: TextBaseline.alphabetic,
+                          children: [
+                            Text(
+                              '${_currentIndex + 1}',
+                              style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: AppColors.primary),
+                            ),
+                            Text(
+                              '/${_questions.length}',
+                              style: const TextStyle(fontSize: 14, color: AppColors.textHint),
+                            ),
+                          ],
+                        ),
+                ),
+              ),
+              _buildModeSwitch(),
+            ],
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: _questions.isEmpty ? 0 : (_currentIndex + 1) / _questions.length,
+              backgroundColor: const Color(0xFFE0E0E0),
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primary),
+              minHeight: 3,
             ),
-          ],
+          ),
+          const SizedBox(height: 6),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeSwitch() {
+    return Container(
+      padding: const EdgeInsets.all(3),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF0F0F0),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _modeItem('答题', true),
+          _modeItem('背题', false),
+        ],
+      ),
+    );
+  }
+
+  Widget _modeItem(String label, bool isAnswer) {
+    final active = _isAnswerMode == isAnswer;
+    return GestureDetector(
+      onTap: () => setState(() {
+        _isAnswerMode = isAnswer;
+        if (!isAnswer) {
+          // 切换到背题：立即显示答案
+          _showAnswer = true;
+        } else {
+          // 切换回答题：只有用户未实际作答时才隐藏解析
+          if (_userAnswer == null && _multiSelected.isEmpty) {
+            _showAnswer = false;
+          }
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: active ? Colors.white : Colors.transparent,
+          borderRadius: BorderRadius.circular(13),
+          boxShadow: active ? [const BoxShadow(color: Color(0x18000000), blurRadius: 4)] : null,
         ),
-      );
-    }
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: active ? AppColors.primary : AppColors.textSecondary,
+            fontWeight: active ? FontWeight.w500 : FontWeight.normal,
+          ),
+        ),
+      ),
+    );
+  }
 
-    if (_questions.isEmpty) {
-      return const Center(child: Text('暂无题目', style: TextStyle(color: AppColors.textHint)));
-    }
+  // ──────────── Body ────────────
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+  Widget _buildBody() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildQuestionCard(),
+        const SizedBox(height: 13),
+        ..._buildOptions(),
+        if (_current.type == 2 && _isAnswerMode && !_showAnswer && _multiSelected.isNotEmpty)
+          _buildMultiSubmitBtn(),
+        if (_showAnswer) ...[
+          const SizedBox(height: 13),
+          _buildAnalysis(),
+        ],
+        const SizedBox(height: 8),
+      ],
+    );
+  }
+
+  Widget _buildQuestionCard() {
+    final tag = _current.categoryName?.isNotEmpty == true
+        ? _current.categoryName!
+        : null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(15),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 2))],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 题型标签
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: AppColors.primaryLight,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              _currentQuestion.typeName,
-              style: const TextStyle(
-                fontSize: 12,
-                color: AppColors.primary,
-                fontWeight: FontWeight.w500,
+          if (tag != null) ...[
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(999),
               ),
+              child: Text(tag, style: const TextStyle(fontSize: 12, color: AppColors.primary)),
             ),
+            const SizedBox(height: 10),
+          ],
+          HtmlContent(
+            html: _current.content,
+            baseStyle: const TextStyle(fontSize: 15, height: 1.8, color: AppColors.textPrimary),
+            selectable: true,
           ),
-          const SizedBox(height: 12),
-
-          // 题目内容（HTML渲染）
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: AppColors.bgWhite,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.bgDivider, width: 0.5),
-            ),
-            child: SelectableText(
-              _stripHtmlTags(_currentQuestion.content),
-              style: const TextStyle(
-                fontSize: 16,
-                height: 1.6,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // 选项区域
-          ..._buildOptions(),
-
-          // 提交答案按钮（多选）
-          if (_currentQuestion.type == 2 && _isAnswerMode && !_multipleSubmitted && _selectedMultipleOptions.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: SizedBox(
-                width: double.infinity,
-                height: 44,
-                child: ElevatedButton(
-                  onPressed: _submitMultipleAnswer,
-                  child: const Text('提交答案'),
-                ),
-              ),
-            ),
-
-          // 收藏按钮
-          Center(
-            child: IconButton(
-              onPressed: _toggleFavorite,
-              icon: Icon(
-                _isFavorite ? Icons.star : Icons.star_border,
-                color: _isFavorite ? AppColors.warningOrange : AppColors.textHint,
-                size: 28,
-              ),
-            ),
-          ),
-
-          // 解析区域
-          if (_showAnswer && _currentQuestion.analysis != null && _currentQuestion.analysis!.isNotEmpty)
-            _buildAnalysisSection(),
         ],
       ),
     );
   }
 
   List<Widget> _buildOptions() {
-    final question = _currentQuestion;
-    final options = question.parsedOptions;
+    final q = _current;
+    if (q.type == 3) return _buildJudgeOptions();
 
-    if (options.isEmpty) return [];
+    final opts = q.parsedOptions;
+    if (opts.isEmpty) return [];
 
-    // 判断题特殊处理
-    if (question.type == 3) {
-      return _buildJudgeOptions();
-    }
+    return opts.map((opt) {
+      final key = opt.key;
+      final isMultiSelected = _multiSelected.contains(key);
+      final isCorrectOpt = q.answer?.contains(key) == true;
+      final isUserSelected = q.type == 2 ? isMultiSelected : (_userAnswer == key);
+      final isWrong = _showAnswer && isUserSelected && !isCorrectOpt;
+      final isMissed = _showAnswer && isCorrectOpt && !isUserSelected && _userAnswer != null;
 
-    return options.map((option) {
-      final isSelected = _userAnswer == option.key;
-      final isCorrectAnswer = question.answer == option.key;
-      final isWrongSelection = _showAnswer && isSelected && !isCorrectAnswer;
-      final isMissed = _showAnswer && isCorrectAnswer && _userAnswer != null && !isSelected && !isCorrectAnswer;
-
-      Color bgColor;
-      Color textColor;
-      Color borderColor;
+      Color bg, border, labelBg, labelColor;
+      Widget? statusIcon;
 
       if (_showAnswer) {
-        if (isCorrectAnswer) {
-          bgColor = AppColors.correctGreen.withValues(alpha: 0.1);
-          textColor = AppColors.correctGreen;
-          borderColor = AppColors.correctGreen;
-        } else if (isWrongSelection) {
-          bgColor = AppColors.wrongRed.withValues(alpha: 0.1);
-          textColor = AppColors.wrongRed;
-          borderColor = AppColors.wrongRed;
+        if (isCorrectOpt) {
+          bg = const Color(0xFFE8F5E9);
+          border = AppColors.primary;
+          labelBg = AppColors.primary;
+          labelColor = Colors.white;
+          statusIcon = const Icon(Icons.check_circle, color: AppColors.primary, size: 18);
+        } else if (isWrong) {
+          bg = const Color(0xFFFFEBEE);
+          border = AppColors.wrongRed;
+          labelBg = AppColors.wrongRed;
+          labelColor = Colors.white;
+          statusIcon = const Icon(Icons.cancel, color: AppColors.wrongRed, size: 18);
         } else if (isMissed) {
-          bgColor = AppColors.warningOrange.withValues(alpha: 0.1);
-          textColor = AppColors.warningOrange;
-          borderColor = AppColors.warningOrange;
+          bg = const Color(0xFFFFFBE6);
+          border = const Color(0xFFFAAD14);
+          labelBg = const Color(0xFFFAAD14);
+          labelColor = Colors.white;
         } else {
-          bgColor = AppColors.bgWhite;
-          textColor = AppColors.textPrimary;
-          borderColor = AppColors.bgDivider;
+          bg = Colors.white;
+          border = Colors.transparent;
+          labelBg = const Color(0xFFF0F0F0);
+          labelColor = AppColors.textSecondary;
         }
-      } else if (isSelected) {
-        bgColor = AppColors.primaryLight;
-        textColor = AppColors.primary;
-        borderColor = AppColors.primary;
-      } else if (question.type == 2 && _selectedMultipleOptions.contains(option.key)) {
-        bgColor = AppColors.primaryLight;
-        textColor = AppColors.primary;
-        borderColor = AppColors.primary;
+      } else if (isUserSelected) {
+        bg = Colors.white;
+        border = const Color(0xFFD9D9D9);
+        labelBg = AppColors.primary;
+        labelColor = Colors.white;
       } else {
-        bgColor = AppColors.bgGray;
-        textColor = AppColors.textPrimary;
-        borderColor = AppColors.bgGray;
+        bg = Colors.white;
+        border = Colors.transparent;
+        labelBg = const Color(0xFFF0F0F0);
+        labelColor = AppColors.textSecondary;
       }
 
       return GestureDetector(
-        onTap: _showAnswer ? null : () => _onOptionTap(option.key),
+        onTap: _showAnswer ? null : () => _onOptionTap(key),
         child: Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
           decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: 1),
+            color: bg,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: border, width: border == Colors.transparent ? 0 : 1),
+            boxShadow: const [BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 1))],
           ),
           child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(
-                '${option.key}. ',
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w600,
-                  color: textColor,
+              Container(
+                width: 28, height: 28,
+                decoration: BoxDecoration(color: labelBg, shape: BoxShape.circle),
+                child: Center(
+                  child: Text(key, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: labelColor)),
                 ),
               ),
+              const SizedBox(width: 10),
               Expanded(
-                child: Text(
-                  option.value,
-                  style: TextStyle(
-                    fontSize: 15,
-                    height: 1.4,
-                    color: textColor,
-                  ),
-                ),
+                child: Text(opt.value, style: const TextStyle(fontSize: 15, height: 1.5, color: AppColors.textPrimary)),
               ),
-              if (_showAnswer && isCorrectAnswer)
-                const Icon(Icons.check_circle, color: AppColors.correctGreen, size: 20),
-              if (_showAnswer && isWrongSelection)
-                const Icon(Icons.cancel, color: AppColors.wrongRed, size: 20),
+              if (statusIcon != null) ...[const SizedBox(width: 6), statusIcon],
             ],
           ),
         ),
@@ -403,129 +388,372 @@ class _PracticePageState extends State<PracticePage> {
   }
 
   List<Widget> _buildJudgeOptions() {
-    final judgeOptions = ['正确', '错误'];
-    return judgeOptions.map((label) {
-      final value = label == '正确' ? 'A' : 'B';
-      final isSelected = _userAnswer == value;
-      final isCorrectAnswer = _currentQuestion.answer == value;
-      final isWrongSelection = _showAnswer && isSelected && !isCorrectAnswer;
-
-      Color bgColor;
-      Color textColor;
-      Color borderColor;
-
-      if (_showAnswer) {
-        if (isCorrectAnswer) {
-          bgColor = AppColors.correctGreen.withValues(alpha: 0.1);
-          textColor = AppColors.correctGreen;
-          borderColor = AppColors.correctGreen;
-        } else if (isWrongSelection) {
-          bgColor = AppColors.wrongRed.withValues(alpha: 0.1);
-          textColor = AppColors.wrongRed;
-          borderColor = AppColors.wrongRed;
-        } else {
-          bgColor = AppColors.bgWhite;
-          textColor = AppColors.textPrimary;
-          borderColor = AppColors.bgDivider;
-        }
-      } else if (isSelected) {
-        bgColor = AppColors.primaryLight;
-        textColor = AppColors.primary;
-        borderColor = AppColors.primary;
-      } else {
-        bgColor = AppColors.bgGray;
-        textColor = AppColors.textPrimary;
-        borderColor = AppColors.bgGray;
-      }
-
-      return GestureDetector(
-        onTap: _showAnswer ? null : () => _onOptionTap(value),
-        child: Container(
-          width: double.infinity,
-          margin: const EdgeInsets.only(bottom: 10),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: borderColor, width: 1),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                isSelected ? Icons.radio_button_checked : Icons.radio_button_off,
-                color: textColor,
-                size: 20,
-              ),
-              const SizedBox(width: 12),
-              Text(
-                label,
-                style: TextStyle(fontSize: 15, color: textColor),
-              ),
-            ],
-          ),
-        ),
-      );
-    }).toList();
+    return [
+      _judgeOption('正确', 'A'),
+      _judgeOption('错误', 'B'),
+    ];
   }
 
-  void _onOptionTap(String optionKey) {
-    if (mounted && !_showAnswer) {
+  Widget _judgeOption(String label, String value) {
+    final q = _current;
+    final isSelected = _userAnswer == value;
+    final isCorrectOpt = q.answer?.toUpperCase() == value;
+    final isWrong = _showAnswer && isSelected && !isCorrectOpt;
+
+    Color bg, border, labelBg, labelColor;
+    Widget? statusIcon;
+
+    if (_showAnswer) {
+      if (isCorrectOpt) {
+        bg = const Color(0xFFE8F5E9); border = AppColors.primary;
+        labelBg = AppColors.primary; labelColor = Colors.white;
+        statusIcon = const Icon(Icons.check_circle, color: AppColors.primary, size: 18);
+      } else if (isWrong) {
+        bg = const Color(0xFFFFEBEE); border = AppColors.wrongRed;
+        labelBg = AppColors.wrongRed; labelColor = Colors.white;
+        statusIcon = const Icon(Icons.cancel, color: AppColors.wrongRed, size: 18);
+      } else {
+        bg = Colors.white; border = Colors.transparent;
+        labelBg = const Color(0xFFF0F0F0); labelColor = AppColors.textSecondary;
+      }
+    } else if (isSelected) {
+      bg = Colors.white; border = const Color(0xFFD9D9D9);
+      labelBg = AppColors.primary; labelColor = Colors.white;
+    } else {
+      bg = Colors.white; border = Colors.transparent;
+      labelBg = const Color(0xFFF0F0F0); labelColor = AppColors.textSecondary;
+    }
+
+    return GestureDetector(
+      onTap: _showAnswer ? null : () => _onOptionTap(value),
+      child: Container(
+        width: double.infinity,
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 13),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: border, width: border == Colors.transparent ? 0 : 1),
+          boxShadow: const [BoxShadow(color: Color(0x06000000), blurRadius: 6, offset: Offset(0, 1))],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(color: labelBg, shape: BoxShape.circle),
+              child: Center(
+                child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: labelColor)),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary))),
+            ?statusIcon,
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMultiSubmitBtn() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: SizedBox(
+        width: double.infinity,
+        height: 46,
+        child: ElevatedButton(
+          onPressed: _submitAnswer,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+          ),
+          child: const Text('提交答案'),
+        ),
+      ),
+    );
+  }
+
+  // ──────────── Analysis ────────────
+
+  Widget _buildAnalysis() {
+    final hasAnalysis = _current.analysis?.isNotEmpty == true;
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 2))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 答案对比
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+            decoration: const BoxDecoration(
+              color: Color(0xFFF8F9FA),
+              borderRadius: BorderRadius.only(topLeft: Radius.circular(16), topRight: Radius.circular(16)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _compareItem('正确答案', _current.answer ?? '-', AppColors.primary),
+                Container(width: 1, height: 40, color: const Color(0xFFE0E0E0)),
+                _compareItem(
+                  '你的答案',
+                  _userAnswer ?? (_isAnswerMode ? '未作答' : '-'),
+                  _userAnswer != null ? (_isCorrect ? AppColors.primary : AppColors.wrongRed) : AppColors.textSecondary,
+                ),
+              ],
+            ),
+          ),
+
+          // 文本解析
+          if (hasAnalysis)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  // 标题行（含复制按钮）
+                  Row(
+                    children: [
+                      const _SectionLabel(title: '文本解析'),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () {
+                          Clipboard.setData(ClipboardData(text: _stripHtml(_current.analysis!)));
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('解析已复制'), duration: Duration(seconds: 1)),
+                          );
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF0F0F0),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: const Text('复制', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF8F9FA),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: HtmlContent(
+                      html: _current.analysis!,
+                      baseStyle: const TextStyle(fontSize: 14, height: 1.7, color: AppColors.textPrimary),
+                      selectable: true,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  Widget _compareItem(String label, String value, Color valueColor) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
+        const SizedBox(height: 8),
+        Text(value, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: valueColor)),
+      ],
+    );
+  }
+
+  // ──────────── Footer ────────────
+
+  Widget _buildFooter() {
+    if (_questions.isEmpty) return const SizedBox();
+
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: AppColors.bgDivider, width: 0.5)),
+      ),
+      padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+      child: Row(
+        children: [
+          // 上一题
+          Expanded(
+            child: GestureDetector(
+              onTap: _currentIndex > 0 ? _goToPrev : null,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 18),
+                decoration: BoxDecoration(
+                  color: _currentIndex > 0 ? const Color(0xFFF0F0F0) : const Color(0xFFF8F8F8),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Center(
+                  child: Text(
+                    '上一题',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: _currentIndex > 0 ? AppColors.textPrimary : AppColors.textHint,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // 中部：答题卡 + 收藏（+ 错题模式下的移除）
+          Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF7F8FA),
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              children: [
+                _footerAction('▦', '答题卡', _showNav, active: false),
+                _footerAction(
+                  _isFavorite ? '★' : '☆',
+                  _isFavorite ? '已收藏' : '收藏',
+                  _toggleFavorite,
+                  active: _isFavorite,
+                ),
+                if (_isWrongMode)
+                  _footerAction('✕', '移除', _removeCurrentWrong, active: false, activeColor: Colors.red),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // 下一题 / 交卷
+          Expanded(
+            child: GestureDetector(
+              onTap: _isLast ? _finish : _goToNext,
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 11, horizontal: 18),
+                decoration: BoxDecoration(
+                  color: _isLast ? const Color(0xFFFF7A45) : AppColors.primary,
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Center(
+                  child: Text(
+                    _isLast ? '交卷' : '下一题',
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: Colors.white),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _footerAction(String symbol, String label, VoidCallback onTap, {required bool active, Color? activeColor}) {
+    final accent = activeColor ?? AppColors.primary;
+    final iconBgActive = activeColor != null ? activeColor.withValues(alpha: 0.12) : const Color(0xFFDFF5E8);
+    final pillBgActive = activeColor != null ? activeColor.withValues(alpha: 0.07) : const Color(0xFFE8F7EF);
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 52,
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        decoration: BoxDecoration(
+          color: active ? pillBgActive : Colors.transparent,
+          borderRadius: BorderRadius.circular(18),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28, height: 28,
+              decoration: BoxDecoration(
+                color: active ? iconBgActive : const Color(0xFFEEF0F3),
+                shape: BoxShape.circle,
+              ),
+              child: Center(
+                child: Text(
+                  symbol,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: active ? accent : (activeColor ?? const Color(0xFF8A9099)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                color: active ? accent : (activeColor ?? AppColors.textSecondary),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // ──────────── Logic ────────────
+
+  void _onOptionTap(String key) {
+    if (_showAnswer) return;
+    if (_current.type == 2) {
       setState(() {
-        // 单选题和判断题：点击直接提交
-        if (_currentQuestion.type == 1 || _currentQuestion.type == 3) {
-          _userAnswer = optionKey;
-          _submitAnswer();
-        }
-        // 多选题：切换选择
-        else if (_currentQuestion.type == 2) {
-          if (_selectedMultipleOptions.contains(optionKey)) {
-            _selectedMultipleOptions.remove(optionKey);
-          } else {
-            _selectedMultipleOptions.add(optionKey);
-          }
+        if (_multiSelected.contains(key)) {
+          _multiSelected.remove(key);
+        } else {
+          _multiSelected.add(key);
         }
       });
+    } else {
+      _userAnswer = key;
+      _submitAnswer();
     }
   }
 
   void _submitAnswer() {
-    if (_userAnswer == null) return;
-
-    final correctAnswer = _currentQuestion.answer ?? '';
-    
-    // 比较答案
-    if (_currentQuestion.type == 2) {
-      // 多选题：排序后比较
-      final userAnswerSorted = _selectedMultipleOptions.toList()..sort();
-      final correctSorted = correctAnswer.split('').map((s) => s.trim()).toList()..sort();
-      _isCorrect = _listEquals(userAnswerSorted, correctSorted);
-      _userAnswer = _selectedMultipleOptions.join(',');
-    } else {
-      _isCorrect = _userAnswer!.trim().toUpperCase() == correctAnswer.trim().toUpperCase();
+    // 多选题：从 _multiSelected 构建答案
+    if (_current.type == 2) {
+      if (_multiSelected.isEmpty) return;
+      _userAnswer = (_multiSelected.toList()..sort()).join('');
     }
 
-    if (_isCorrect) {
-      _correctCount++;
+    if (_userAnswer == null || _userAnswer!.isEmpty) return;
+
+    final correct = _current.answer ?? '';
+
+    if (_current.type == 2) {
+      // 多选：排序后对比
+      final ua = _userAnswer!.split('').toList()..sort();
+      final ca = correct.split('').where((s) => s.trim().isNotEmpty).toList()..sort();
+      _isCorrect = _listEq(ua, ca);
     } else {
-      _wrongCount++;
+      _isCorrect = _userAnswer!.trim().toUpperCase() == correct.trim().toUpperCase();
     }
 
-    setState(() {
-      _showAnswer = true;
-    });
+    if (_isCorrect) { _correctCount++; } else { _wrongCount++; }
 
-    // 提交答案到服务器
-    context.read<ExamProvider>().submitAnswer(_currentQuestion.id, _userAnswer ?? '');
+    setState(() => _showAnswer = true);
+
+    context.read<ExamProvider>().submitAnswer(_current.id, _userAnswer ?? '');
   }
 
-  void _submitMultipleAnswer() {
-    setState(() {
-      _multipleSubmitted = true;
-    });
-    _submitAnswer();
-  }
-
-  bool _listEquals(List<String> a, List<String> b) {
+  bool _listEq(List<String> a, List<String> b) {
     if (a.length != b.length) return false;
     for (var i = 0; i < a.length; i++) {
       if (a[i] != b[i]) return false;
@@ -533,273 +761,111 @@ class _PracticePageState extends State<PracticePage> {
     return true;
   }
 
-  Widget _buildAnalysisSection() {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(top: 12, bottom: 24),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.infoBlue.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.infoBlue.withValues(alpha: 0.2)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                _isCorrect ? Icons.check_circle : Icons.cancel,
-                color: _isCorrect ? AppColors.correctGreen : AppColors.wrongRed,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _isCorrect ? '回答正确' : '回答错误',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: _isCorrect ? AppColors.correctGreen : AppColors.wrongRed,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Text('正确答案: ', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-              Text(
-                _currentQuestion.answer ?? '',
-                style: const TextStyle(
-                  color: AppColors.correctGreen,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          if (_userAnswer != null) ...[
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                const Text('你的答案: ', style: TextStyle(color: AppColors.textSecondary, fontSize: 14)),
-                Text(
-                  _userAnswer!,
-                  style: TextStyle(
-                    color: _isCorrect ? AppColors.correctGreen : AppColors.wrongRed,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 12),
-          const Text('解析', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
-          const SizedBox(height: 8),
-          SelectableText(
-            _stripHtmlTags(_currentQuestion.analysis ?? ''),
-            style: const TextStyle(
-              fontSize: 14,
-              height: 1.6,
-              color: AppColors.textSecondary,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildBottomBar() {
-    if (_questions.isEmpty) return const SizedBox();
-
-    return Container(
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: AppColors.bgDivider, width: 0.5)),
-        color: AppColors.bgWhite,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        children: [
-          // 上一题
-          Expanded(
-            child: TextButton(
-              onPressed: _currentIndex > 0 ? _goToPrevious : null,
-              style: TextButton.styleFrom(
-                foregroundColor: AppColors.textPrimary,
-                disabledForegroundColor: AppColors.textHint,
-              ),
-              child: const Text('上一题'),
-            ),
-          ),
-          const SizedBox(width: 12),
-          // 答题卡
-          TextButton.icon(
-            onPressed: _showQuestionNav,
-            icon: const Icon(Icons.grid_view, size: 18),
-            label: const Text('答题卡'),
-          ),
-          const SizedBox(width: 12),
-          // 下一题/完成
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _isLast ? _finishPractice : _goToNext,
-              style: ElevatedButton.styleFrom(
-                minimumSize: const Size(double.infinity, 40),
-              ),
-              child: Text(_isLast ? '完成' : '下一题'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   void _goToNext() {
     if (_currentIndex < _questions.length - 1) {
-      _resetForNextQuestion();
-      setState(() {
-        _currentIndex++;
-      });
-      _checkFavoriteStatus();
+      _resetQuestion();
+      setState(() => _currentIndex++);
+      _checkFavorite();
     }
   }
 
-  void _goToPrevious() {
+  void _goToPrev() {
     if (_currentIndex > 0) {
-      _resetForNextQuestion();
-      setState(() {
-        _currentIndex--;
-      });
-      _checkFavoriteStatus();
+      _resetQuestion();
+      setState(() => _currentIndex--);
+      _checkFavorite();
     }
   }
 
-  void _resetForNextQuestion() {
-    setState(() {
-      _showAnswer = false;
-      _userAnswer = null;
-      _isCorrect = false;
-      _selectedMultipleOptions.clear();
-      _multipleSubmitted = false;
-    });
-  }
-
-  void _showQuestionNav() {
-    showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-      ),
-      builder: (context) {
-        return Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                '答题卡',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 4),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  _navBadge('已答', '$_correctCount', AppColors.correctGreen),
-                  const SizedBox(width: 16),
-                  _navBadge('总题', '${_questions.length}', AppColors.primary),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: List.generate(_questions.length, (index) {
-                  final isCurrent = index == _currentIndex;
-                  return GestureDetector(
-                    onTap: () {
-                      _resetForNextQuestion();
-                      setState(() => _currentIndex = index);
-                      Navigator.pop(context);
-                      _checkFavoriteStatus();
-                    },
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      alignment: Alignment.center,
-                      decoration: BoxDecoration(
-                        color: isCurrent
-                            ? AppColors.primary
-                            : AppColors.bgGray,
-                        borderRadius: BorderRadius.circular(8),
-                        border: isCurrent
-                            ? null
-                            : Border.all(color: AppColors.bgDivider),
-                      ),
-                      child: Text(
-                        '${index + 1}',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: isCurrent ? Colors.white : AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('确定'),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _navBadge(String label, String value, Color color) {
-    return Row(
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(
-            color: color,
-            shape: BoxShape.circle,
-          ),
-        ),
-        const SizedBox(width: 4),
-        Text('$label: $value',
-            style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
-      ],
-    );
+  void _resetQuestion() {
+    _showAnswer = !_isAnswerMode; // 背题模式下保持显示答案
+    _userAnswer = null;
+    _isCorrect = false;
+    _multiSelected.clear();
   }
 
   Future<void> _toggleFavorite() async {
     if (_loadingFavorite) return;
-    _loadingFavorite = true;
+    setState(() => _loadingFavorite = true);
+    final ok = await context.read<ExamProvider>().toggleFavorite(_current.id);
+    if (mounted) setState(() { if (ok) _isFavorite = !_isFavorite; _loadingFavorite = false; });
+  }
 
-    final examProvider = context.read<ExamProvider>();
-    await examProvider.toggleFavorite(_currentQuestion.id);
+  Future<void> _removeCurrentWrong() async {
+    if (_removingWrong) return;
+    final questionId = _current.id;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('移除错题'),
+        content: const Text('确定将此题从错题本中移除吗？'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('移除', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
 
-    if (mounted) {
+    setState(() => _removingWrong = true);
+    final ok = await context.read<ExamProvider>().removeWrong(questionId);
+    if (!mounted) return;
+    setState(() => _removingWrong = false);
+
+    if (ok) {
+      _questions.removeWhere((q) => q.id == questionId);
+      if (!mounted) return;
+      if (_questions.isEmpty) {
+        Navigator.pop(context);
+        return;
+      }
       setState(() {
-        _isFavorite = !_isFavorite;
-        _loadingFavorite = false;
+        if (_currentIndex >= _questions.length) _currentIndex = _questions.length - 1;
+        _resetQuestion();
       });
+      await _checkFavorite();
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('移除失败，请稍后重试'), duration: Duration(seconds: 2)),
+      );
     }
   }
 
-  Future<void> _finishPractice() async {
-    final duration = DateTime.now().difference(_startTime).inSeconds;
+  void _showNav() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _QuestionNavSheet(
+        total: _questions.length,
+        current: _currentIndex,
+        onSelect: (i) {
+          setState(() { _resetQuestion(); _currentIndex = i; });
+          Navigator.pop(ctx);
+          _checkFavorite();
+        },
+        onRedo: () {
+          Navigator.pop(ctx);
+          setState(() {
+            _currentIndex = 0;
+            _correctCount = 0;
+            _wrongCount = 0;
+            _resetQuestion();
+          });
+          _checkFavorite();
+        },
+        onSubmit: () { Navigator.pop(ctx); _finish(); },
+        correctCount: _correctCount,
+        wrongCount: _wrongCount,
+      ),
+    );
+  }
 
-    // 保存练习记录
+  Future<void> _finish() async {
+    final duration = DateTime.now().difference(_startTime).inSeconds;
     if (!_isWrongMode && !_isFavoriteMode) {
       await context.read<ExamProvider>().savePracticeRecord(
         bankId: widget.bankId,
@@ -810,34 +876,24 @@ class _PracticePageState extends State<PracticePage> {
         duration: duration,
       );
     }
-
     if (mounted) {
       showDialog(
         context: context,
         barrierDismissible: false,
-        builder: (context) => AlertDialog(
-          title: const Text('练习完成'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
+        builder: (_) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('练习完成', textAlign: TextAlign.center),
+          content: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              const Text('恭喜你完成本次练习！'),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: [
-                  _statItem('总题', '${_correctCount + _wrongCount}'),
-                  _statItem('正确', '$_correctCount', AppColors.correctGreen),
-                  _statItem('错误', '$_wrongCount', AppColors.wrongRed),
-                ],
-              ),
+              _statItem('总题', '${_correctCount + _wrongCount}'),
+              _statItem('正确', '$_correctCount', AppColors.primary),
+              _statItem('错误', '$_wrongCount', AppColors.wrongRed),
             ],
           ),
           actions: [
             TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-                Navigator.pop(context);
-              },
+              onPressed: () { Navigator.pop(context); Navigator.pop(context); },
               child: const Text('确定'),
             ),
           ],
@@ -846,24 +902,31 @@ class _PracticePageState extends State<PracticePage> {
     }
   }
 
+  Widget _buildError() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.error_outline, size: 48, color: AppColors.textHint),
+          const SizedBox(height: 12),
+          Text(_errorMessage!, style: const TextStyle(color: AppColors.textSecondary)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(onPressed: _loadQuestions, icon: const Icon(Icons.refresh, size: 18), label: const Text('重试')),
+        ],
+      ),
+    );
+  }
+
   Widget _statItem(String label, String value, [Color? color]) {
     return Column(
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 24,
-            fontWeight: FontWeight.bold,
-            color: color ?? AppColors.textPrimary,
-          ),
-        ),
+        Text(value, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: color ?? AppColors.textPrimary)),
         Text(label, style: const TextStyle(fontSize: 13, color: AppColors.textSecondary)),
       ],
     );
   }
 
-  /// 简单去除 HTML 标签
-  String _stripHtmlTags(String html) {
+  String _stripHtml(String html) {
     return html
         .replaceAll(RegExp(r'<[^>]*>'), '')
         .replaceAll('&nbsp;', ' ')
@@ -872,5 +935,157 @@ class _PracticePageState extends State<PracticePage> {
         .replaceAll('&amp;', '&')
         .replaceAll('&quot;', '"')
         .trim();
+  }
+}
+
+// ──────────── 答题卡 Sheet ────────────
+
+class _QuestionNavSheet extends StatelessWidget {
+  final int total;
+  final int current;
+  final void Function(int) onSelect;
+  final VoidCallback onRedo;
+  final VoidCallback onSubmit;
+  final int correctCount;
+  final int wrongCount;
+
+  const _QuestionNavSheet({
+    required this.total,
+    required this.current,
+    required this.onSelect,
+    required this.onRedo,
+    required this.onSubmit,
+    required this.correctCount,
+    required this.wrongCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 30),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 标题
+          Text('答题卡', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Color(0xFF999999))),
+          const SizedBox(height: 12),
+          // 图例
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _legend('答对', AppColors.primary),
+              const SizedBox(width: 20),
+              _legend('答错', AppColors.wrongRed),
+              const SizedBox(width: 20),
+              _legend('未答', const Color(0xFFF0F0F0), textColor: AppColors.textSecondary),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // 题目格
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxHeight: 240),
+            child: SingleChildScrollView(
+              child: Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: List.generate(total, (i) {
+                  final isCurrent = i == current;
+                  return GestureDetector(
+                    onTap: () => onSelect(i),
+                    child: Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                        color: isCurrent ? AppColors.primary : const Color(0xFFF0F0F0),
+                        shape: BoxShape.circle,
+                        border: isCurrent ? null : Border.all(color: const Color(0xFFD9D9D9)),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: isCurrent ? Colors.white : AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+          const SizedBox(height: 20),
+          // 操作按钮
+          Row(
+            children: [
+              Expanded(
+                child: GestureDetector(
+                  onTap: onRedo,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF7A45),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(child: Text('重做', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500))),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: GestureDetector(
+                  onTap: onSubmit,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(vertical: 13),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(child: Text('提交', style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500))),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _legend(String label, Color dotColor, {Color? textColor}) {
+    return Row(
+      children: [
+        Container(width: 13, height: 13, decoration: BoxDecoration(color: dotColor, borderRadius: BorderRadius.circular(3))),
+        const SizedBox(width: 4),
+        Text(label, style: TextStyle(fontSize: 13, color: textColor ?? AppColors.textSecondary)),
+      ],
+    );
+  }
+}
+
+// ──────────── Section Label ────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  const _SectionLabel({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 3, height: 14,
+          decoration: BoxDecoration(color: AppColors.primary, borderRadius: BorderRadius.circular(2)),
+        ),
+        const SizedBox(width: 8),
+        Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.textPrimary)),
+      ],
+    );
   }
 }
