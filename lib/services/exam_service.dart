@@ -82,6 +82,7 @@ class ExamService {
   Future<ApiResponse<dynamic>> saveRecord({
     required int bankId,
     int? categoryId,
+    required int practiceType,
     required int correctCount,
     required int wrongCount,
     required int totalCount,
@@ -92,6 +93,7 @@ class ExamService {
       data: {
         'bankId': bankId,
         'categoryId': categoryId,
+        'practiceType': practiceType,
         'correctCount': correctCount,
         'wrongCount': wrongCount,
         'totalCount': totalCount,

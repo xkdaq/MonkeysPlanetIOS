@@ -111,23 +111,6 @@ class _BindPhonePageState extends State<BindPhonePage> {
             ],
           ),
         ),
-        const SizedBox(height: 24),
-
-        // 更换按钮
-        SizedBox(
-          height: 50,
-          child: OutlinedButton(
-            onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('换绑功能即将上线'), duration: Duration(seconds: 2)),
-            ),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: AppColors.bgDivider),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              foregroundColor: AppColors.textSecondary,
-            ),
-            child: const Text('更换手机号', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-          ),
-        ),
       ],
     );
   }

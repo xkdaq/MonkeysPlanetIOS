@@ -11,7 +11,10 @@ class AboutPage extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('关于我们', style: TextStyle(fontWeight: FontWeight.w600)),
+        title: const Text(
+          '关于我们',
+          style: TextStyle(fontWeight: FontWeight.w600),
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(0.5),
           child: Container(color: AppColors.bgDivider, height: 0.5),
@@ -27,42 +30,50 @@ class AboutPage extends StatelessWidget {
             child: Column(
               children: [
                 Container(
-                  width: 88,
-                  height: 88,
+                  width: 96,
+                  height: 96,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(22),
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF07C160), Color(0xFF06AE56)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    borderRadius: BorderRadius.circular(24),
+                    color: const Color(0xFFF8F5F0),
                     boxShadow: const [
-                      BoxShadow(color: Color(0x3007C160), blurRadius: 16, offset: Offset(0, 6)),
+                      BoxShadow(
+                        color: Color(0x1A000000),
+                        blurRadius: 20,
+                        offset: Offset(0, 6),
+                      ),
                     ],
                   ),
-                  child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
                     child: Image.asset(
-                      'assets/images/mine.png',
-                      width: 50,
-                      height: 50,
-                      fit: BoxFit.contain,
-                      errorBuilder: (_, __, ___) => const Icon(Icons.school_rounded, color: Colors.white, size: 48),
+                      'assets/images/app_logo.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
                 const SizedBox(height: 16),
                 const Text(
                   '猴哥星球',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                  style: TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.textPrimary,
+                  ),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFFF0F0F0),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: const Text('Version 1.0.0', style: TextStyle(fontSize: 13, color: AppColors.textHint)),
+                  child: const Text(
+                    'Version 1.0.0',
+                    style: TextStyle(fontSize: 13, color: AppColors.textHint),
+                  ),
                 ),
               ],
             ),
@@ -75,11 +86,21 @@ class AboutPage extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.bgWhite,
               borderRadius: BorderRadius.circular(14),
-              boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 2))],
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             child: const Text(
               '猴哥星球是一款专业的在线刷题学习平台，致力于帮助用户高效备考、巩固知识。我们提供丰富的题库资源和智能练习系统，让每一次学习都更有价值。',
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.7),
+              style: TextStyle(
+                fontSize: 14,
+                color: AppColors.textSecondary,
+                height: 1.7,
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -89,7 +110,13 @@ class AboutPage extends StatelessWidget {
             decoration: BoxDecoration(
               color: AppColors.bgWhite,
               borderRadius: BorderRadius.circular(14),
-              boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 2))],
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x0A000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               children: [
@@ -99,7 +126,11 @@ class AboutPage extends StatelessWidget {
                   label: '用户服务协议',
                   url: LegalUrls.userAgreement,
                 ),
-                Container(height: 0.5, color: AppColors.bgDivider, margin: const EdgeInsets.only(left: 56)),
+                Container(
+                  height: 0.5,
+                  color: AppColors.bgDivider,
+                  margin: const EdgeInsets.only(left: 56),
+                ),
                 _buildLinkRow(
                   context,
                   icon: Icons.security_outlined,
@@ -113,7 +144,7 @@ class AboutPage extends StatelessWidget {
 
           const Center(
             child: Text(
-              '© 2024 猴哥星球 All Rights Reserved',
+              '© 2026 猴哥星球 All Rights Reserved',
               style: TextStyle(fontSize: 12, color: AppColors.textHint),
             ),
           ),
@@ -122,7 +153,12 @@ class AboutPage extends StatelessWidget {
     );
   }
 
-  Widget _buildLinkRow(BuildContext context, {required IconData icon, required String label, required String url}) {
+  Widget _buildLinkRow(
+    BuildContext context, {
+    required IconData icon,
+    required String label,
+    required String url,
+  }) {
     return GestureDetector(
       onTap: () => _openUrl(context, url),
       child: Container(
@@ -140,7 +176,15 @@ class AboutPage extends StatelessWidget {
               child: Icon(icon, size: 18, color: AppColors.primary),
             ),
             const SizedBox(width: 12),
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary))),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: AppColors.textPrimary,
+                ),
+              ),
+            ),
             const Icon(Icons.open_in_new, size: 16, color: AppColors.textHint),
           ],
         ),
@@ -155,7 +199,10 @@ class AboutPage extends StatelessWidget {
     } else {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('无法打开链接，请检查网络'), duration: Duration(seconds: 2)),
+          const SnackBar(
+            content: Text('无法打开链接，请检查网络'),
+            duration: Duration(seconds: 2),
+          ),
         );
       }
     }

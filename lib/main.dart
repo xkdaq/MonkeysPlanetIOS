@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'constants/app_colors.dart';
-import 'pages/main_tabs.dart';
+import 'pages/splash_page.dart';
 import 'pages/profile/login_page.dart';
 import 'providers/auth_provider.dart';
 import 'providers/exam_provider.dart';
@@ -72,6 +72,11 @@ class MonkeysPlanetApp extends StatelessWidget {
           centerTitle: true,
           scrolledUnderElevation: 0.5,
           surfaceTintColor: Colors.transparent,
+          titleTextStyle: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w600,
+            color: AppColors.textPrimary,
+          ),
         ),
         dividerTheme: const DividerThemeData(
           color: AppColors.bgDivider,
@@ -106,7 +111,7 @@ class MonkeysPlanetApp extends StatelessWidget {
         ),
       ),
       navigatorKey: navigatorKey,
-      home: const MainTabs(),
+      home: const SplashPage(),
     );
   }
 }

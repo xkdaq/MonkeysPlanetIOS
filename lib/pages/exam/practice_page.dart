@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/app_colors.dart';
 import '../../models/question.dart';
 import '../../providers/exam_provider.dart';
 import '../profile/login_page.dart';
 import '../../widgets/html_content.dart';
 import '../../widgets/loading_indicator.dart';
+import '../../widgets/app_dialog.dart';
 
 class PracticePage extends StatefulWidget {
   final int bankId;
@@ -48,10 +51,16 @@ class _PracticePageState extends State<PracticePage> {
   // 多选题
   final Set<String> _multiSelected = {};
 
+  // 每题答题记录（进度保存/恢复）
+  final Map<int, _QuestionAnswer> _answers = {};
+
   bool get _isWrongMode => widget.mode == 'wrong';
   bool get _isFavoriteMode => widget.mode == 'favorite';
   bool get _isLast => _currentIndex >= _questions.length - 1;
   Question get _current => _questions[_currentIndex];
+
+  String get _progressKey =>
+      'practice_progress_${widget.bankId}_${widget.categoryId ?? 0}_${widget.practiceType}';
 
   @override
   void initState() {
@@ -99,10 +108,117 @@ class _PracticePageState extends State<PracticePage> {
       if (widget.startIndex != null && widget.startIndex! < _questions.length) {
         _currentIndex = widget.startIndex!;
       }
-      await _checkFavorite();
       setState(() => _isLoading = false);
+      // 检查并弹框恢复进度（wrong/favorite 模式跳过）
+      if (!_isWrongMode && !_isFavoriteMode) {
+        await _checkAndRestoreProgress();
+      }
+      await _checkFavorite();
     } catch (e) {
       setState(() { _errorMessage = '加载失败'; _isLoading = false; });
+    }
+  }
+
+  // ──────────── 进度保存/恢复 ────────────
+
+  Future<void> _saveProgress() async {
+    if (_isWrongMode || _isFavoriteMode || _questions.isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    // 已全部完成则清除
+    if (_currentIndex >= _questions.length - 1 && _answers.length >= _questions.length) {
+      await prefs.remove(_progressKey);
+      return;
+    }
+    final answersJson = _answers.map((id, a) => MapEntry(
+      id.toString(),
+      {'userAnswer': a.userAnswer, 'isCorrect': a.isCorrect},
+    ));
+    final data = jsonEncode({
+      'currentIndex': _currentIndex,
+      'questionIds': _questions.map((q) => q.id).toList(),
+      'answers': answersJson,
+      'correctCount': _correctCount,
+      'wrongCount': _wrongCount,
+      'durationOffset': DateTime.now().difference(_startTime).inSeconds,
+    });
+    await prefs.setString(_progressKey, data);
+  }
+
+  Future<void> _clearProgress() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_progressKey);
+  }
+
+  Future<void> _checkAndRestoreProgress() async {
+    if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString(_progressKey);
+    if (saved == null) return;
+
+    try {
+      final progress = jsonDecode(saved) as Map<String, dynamic>;
+      final savedIds = (progress['questionIds'] as List).map((e) => e as int).toList();
+      final currentIds = _questions.map((q) => q.id).toList();
+
+      // 题目列表不一致则清除旧进度
+      if (savedIds.length != currentIds.length ||
+          !List.generate(savedIds.length, (i) => savedIds[i] == currentIds[i]).every((e) => e)) {
+        await prefs.remove(_progressKey);
+        return;
+      }
+
+      final savedIndex = progress['currentIndex'] as int;
+      if (savedIndex <= 0 && (progress['answers'] as Map).isEmpty) return;
+
+      final savedCorrect = progress['correctCount'] as int;
+      final savedWrong = progress['wrongCount'] as int;
+      final durationSecs = progress['durationOffset'] as int;
+      final answeredCount = (progress['answers'] as Map).length;
+      final mins = durationSecs ~/ 60;
+      final secs = durationSecs % 60;
+
+      if (!mounted) return;
+      final resume = await AppDialog.show<bool>(
+        context: context,
+        title: '继续上次练习',
+        message: '已做 $answeredCount/${_questions.length} 题，'
+            '答对 $savedCorrect 题，用时 $mins 分 $secs 秒\n是否继续上次的进度？',
+        actions: [
+          AppDialogAction(
+            text: '重新开始',
+            style: AppDialogActionStyle.cancel,
+            onPressed: () => Navigator.pop(context, false),
+          ),
+          AppDialogAction(
+            text: '继续练习',
+            isDefault: true,
+            onPressed: () => Navigator.pop(context, true),
+          ),
+        ],
+      );
+
+      if (!mounted) return;
+      if (resume == true) {
+        final rawAnswers = progress['answers'] as Map<String, dynamic>;
+        setState(() {
+          for (final entry in rawAnswers.entries) {
+            final id = int.parse(entry.key);
+            final map = entry.value as Map<String, dynamic>;
+            _answers[id] = _QuestionAnswer(
+              map['userAnswer'] as String,
+              map['isCorrect'] as bool,
+            );
+          }
+          _correctCount = savedCorrect;
+          _wrongCount = savedWrong;
+          _startTime = DateTime.now().subtract(Duration(seconds: durationSecs));
+          _navigateToQuestionNoFavorite(savedIndex);
+        });
+      } else {
+        await prefs.remove(_progressKey);
+      }
+    } catch (_) {
+      await prefs.remove(_progressKey);
     }
   }
 
@@ -710,6 +826,35 @@ class _PracticePageState extends State<PracticePage> {
 
   // ──────────── Logic ────────────
 
+  // ──────────── 题目导航（含历史答题恢复） ────────────
+
+  void _navigateToQuestionNoFavorite(int index) {
+    if (index < 0 || index >= _questions.length) return;
+    _currentIndex = index;
+    final existing = _answers[_questions[index].id];
+    if (existing != null) {
+      _userAnswer = existing.userAnswer;
+      _isCorrect = existing.isCorrect;
+      _showAnswer = true;
+      _multiSelected.clear();
+      if (_questions[index].type == 2) {
+        for (final c in existing.userAnswer.split('')) {
+          _multiSelected.add(c);
+        }
+      }
+    } else {
+      _showAnswer = !_isAnswerMode;
+      _userAnswer = null;
+      _isCorrect = false;
+      _multiSelected.clear();
+    }
+  }
+
+  void _navigateTo(int index) {
+    setState(() => _navigateToQuestionNoFavorite(index));
+    _checkFavorite();
+  }
+
   void _onOptionTap(String key) {
     if (_showAnswer) return;
     if (_current.type == 2) {
@@ -748,9 +893,13 @@ class _PracticePageState extends State<PracticePage> {
 
     if (_isCorrect) { _correctCount++; } else { _wrongCount++; }
 
+    // 记录本题答案，用于进度保存和切题后恢复
+    _answers[_current.id] = _QuestionAnswer(_userAnswer!, _isCorrect);
+
     setState(() => _showAnswer = true);
 
     context.read<ExamProvider>().submitAnswer(_current.id, _userAnswer ?? '');
+    _saveProgress();
   }
 
   bool _listEq(List<String> a, List<String> b) {
@@ -763,22 +912,18 @@ class _PracticePageState extends State<PracticePage> {
 
   void _goToNext() {
     if (_currentIndex < _questions.length - 1) {
-      _resetQuestion();
-      setState(() => _currentIndex++);
-      _checkFavorite();
+      _navigateTo(_currentIndex + 1);
     }
   }
 
   void _goToPrev() {
     if (_currentIndex > 0) {
-      _resetQuestion();
-      setState(() => _currentIndex--);
-      _checkFavorite();
+      _navigateTo(_currentIndex - 1);
     }
   }
 
   void _resetQuestion() {
-    _showAnswer = !_isAnswerMode; // 背题模式下保持显示答案
+    _showAnswer = !_isAnswerMode;
     _userAnswer = null;
     _isCorrect = false;
     _multiSelected.clear();
@@ -794,19 +939,22 @@ class _PracticePageState extends State<PracticePage> {
   Future<void> _removeCurrentWrong() async {
     if (_removingWrong) return;
     final questionId = _current.id;
-    final confirmed = await showDialog<bool>(
+    final confirmed = await AppDialog.show<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('移除错题'),
-        content: const Text('确定将此题从错题本中移除吗？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('取消')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('移除', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
+      title: '移除错题',
+      message: '确定将此题从错题本中移除吗？',
+      actions: [
+        AppDialogAction(
+          text: '取消',
+          style: AppDialogActionStyle.cancel,
+          onPressed: () => Navigator.pop(context, false),
+        ),
+        AppDialogAction(
+          text: '移除',
+          style: AppDialogActionStyle.destructive,
+          onPressed: () => Navigator.pop(context, true),
+        ),
+      ],
     );
     if (confirmed != true || !mounted) return;
 
@@ -843,16 +991,18 @@ class _PracticePageState extends State<PracticePage> {
         total: _questions.length,
         current: _currentIndex,
         onSelect: (i) {
-          setState(() { _resetQuestion(); _currentIndex = i; });
           Navigator.pop(ctx);
-          _checkFavorite();
+          _navigateTo(i);
         },
         onRedo: () {
           Navigator.pop(ctx);
+          _answers.clear();
+          _clearProgress();
           setState(() {
             _currentIndex = 0;
             _correctCount = 0;
             _wrongCount = 0;
+            _startTime = DateTime.now();
             _resetQuestion();
           });
           _checkFavorite();
@@ -864,12 +1014,25 @@ class _PracticePageState extends State<PracticePage> {
     );
   }
 
+  @override
+  void dispose() {
+    // 退出时静默保存进度（fire-and-forget，不阻塞 UI）
+    if (!_isWrongMode && !_isFavoriteMode) {
+      _saveProgress();
+    }
+    super.dispose();
+  }
+
   Future<void> _finish() async {
     final duration = DateTime.now().difference(_startTime).inSeconds;
     if (!_isWrongMode && !_isFavoriteMode) {
+      await _clearProgress(); // 交卷完成，清除进度
+      if (!mounted) return;
+      // ignore: use_build_context_synchronously
       await context.read<ExamProvider>().savePracticeRecord(
         bankId: widget.bankId,
         categoryId: widget.categoryId,
+        practiceType: widget.practiceType,
         correctCount: _correctCount,
         wrongCount: _wrongCount,
         totalCount: _correctCount + _wrongCount,
@@ -877,13 +1040,13 @@ class _PracticePageState extends State<PracticePage> {
       );
     }
     if (mounted) {
-      showDialog(
+      AppDialog.show(
         context: context,
         barrierDismissible: false,
-        builder: (_) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('练习完成', textAlign: TextAlign.center),
-          content: Row(
+        title: '练习完成',
+        content: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _statItem('总题', '${_correctCount + _wrongCount}'),
@@ -891,13 +1054,14 @@ class _PracticePageState extends State<PracticePage> {
               _statItem('错误', '$_wrongCount', AppColors.wrongRed),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () { Navigator.pop(context); Navigator.pop(context); },
-              child: const Text('确定'),
-            ),
-          ],
         ),
+        actions: [
+          AppDialogAction(
+            text: '确定',
+            isDefault: true,
+            onPressed: () { Navigator.pop(context); Navigator.pop(context); },
+          ),
+        ],
       );
     }
   }
@@ -936,6 +1100,14 @@ class _PracticePageState extends State<PracticePage> {
         .replaceAll('&quot;', '"')
         .trim();
   }
+}
+
+// ──────────── 答题记录 ────────────
+
+class _QuestionAnswer {
+  final String userAnswer;
+  final bool isCorrect;
+  const _QuestionAnswer(this.userAnswer, this.isCorrect);
 }
 
 // ──────────── 答题卡 Sheet ────────────

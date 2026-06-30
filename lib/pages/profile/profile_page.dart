@@ -11,6 +11,7 @@ import 'study_records_page.dart';
 import 'about_page.dart';
 import 'feedback_page.dart';
 import 'settings_page.dart';
+import '../../widgets/app_dialog.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -128,8 +129,8 @@ class ProfilePage extends StatelessWidget {
                   ? CachedNetworkImage(
                       imageUrl: authProvider.userInfo!.avatarUrl!,
                       fit: BoxFit.cover,
-                      placeholder: (_, __) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
-                      errorWidget: (_, __, ___) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
+                      placeholder: (ctx, url) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
+                      errorWidget: (ctx, url, err) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
                     )
                   : Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
             ),
@@ -141,9 +142,23 @@ class ProfilePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                authProvider.displayName,
-                style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      authProvider.displayName,
+                      style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w500, color: AppColors.textPrimary),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (authProvider.userInfo?.gender == 1) ...[
+                    const SizedBox(width: 5),
+                    Image.asset('assets/images/icon_nan.png', width: 16, height: 16),
+                  ] else if (authProvider.userInfo?.gender == 2) ...[
+                    const SizedBox(width: 5),
+                    Image.asset('assets/images/icon_nv.png', width: 16, height: 16),
+                  ],
+                ],
               ),
               const SizedBox(height: 4),
               Text(
@@ -281,22 +296,25 @@ class ProfilePage extends StatelessWidget {
   }
 
   void _showLogoutDialog(BuildContext context, AuthProvider authProvider) {
-    showDialog(
+    AppDialog.show(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('提示'),
-        content: const Text('确定要退出登录吗？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('取消')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              authProvider.logout();
-            },
-            child: const Text('确定', style: TextStyle(color: Color(0xFFFF4D4F))),
-          ),
-        ],
-      ),
+      title: '退出登录',
+      message: '确定要退出登录吗？',
+      actions: [
+        AppDialogAction(
+          text: '取消',
+          style: AppDialogActionStyle.cancel,
+          onPressed: () => Navigator.pop(context),
+        ),
+        AppDialogAction(
+          text: '退出',
+          style: AppDialogActionStyle.destructive,
+          onPressed: () {
+            Navigator.pop(context);
+            authProvider.logout();
+          },
+        ),
+      ],
     );
   }
 }

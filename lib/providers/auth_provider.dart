@@ -210,6 +210,27 @@ class AuthProvider with ChangeNotifier {
     } catch (_) {}
   }
 
+  /// 更新昵称（成功后刷新 userInfo）
+  Future<void> updateNickname(String nickname) async {
+    final result = await _userService.updateNickname(nickname);
+    if (!result.isSuccess) throw Exception(result.msg ?? '昵称更新失败');
+    await refreshUserInfo();
+  }
+
+  /// 更新性别（成功后刷新 userInfo）
+  Future<void> updateGender(int gender) async {
+    final result = await _userService.updateGender(gender);
+    if (!result.isSuccess) throw Exception(result.msg ?? '性别更新失败');
+    await refreshUserInfo();
+  }
+
+  /// 上传头像文件（成功后刷新 userInfo）
+  Future<void> uploadAvatar(String filePath) async {
+    final result = await _userService.uploadAvatar(filePath);
+    if (!result.isSuccess) throw Exception(result.msg ?? '头像上传失败');
+    await refreshUserInfo();
+  }
+
   /// 清除错误信息
   void clearLoginError() {
     _loginError = null;

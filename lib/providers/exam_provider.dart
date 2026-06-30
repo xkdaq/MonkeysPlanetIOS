@@ -228,6 +228,7 @@ class ExamProvider with ChangeNotifier {
   Future<bool> savePracticeRecord({
     required int bankId,
     int? categoryId,
+    required int practiceType,
     required int correctCount,
     required int wrongCount,
     required int totalCount,
@@ -237,6 +238,7 @@ class ExamProvider with ChangeNotifier {
       final result = await _examService.saveRecord(
         bankId: bankId,
         categoryId: categoryId,
+        practiceType: practiceType,
         correctCount: correctCount,
         wrongCount: wrongCount,
         totalCount: totalCount,

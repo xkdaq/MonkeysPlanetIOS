@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/app_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -11,8 +12,6 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
-  bool _pushEnabled = true;
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -29,19 +28,6 @@ class _SettingsPageState extends State<SettingsPage> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(12, 16, 12, 32),
             children: [
-              // 通知设置
-              _sectionLabel('通知设置'),
-              _buildCard([
-                _switchRow(
-                  icon: Icons.notifications_outlined,
-                  iconColor: const Color(0xFF5B8DEF),
-                  label: '推送通知',
-                  value: _pushEnabled,
-                  onChanged: (v) => setState(() => _pushEnabled = v),
-                ),
-              ]),
-              const SizedBox(height: 16),
-
               // 通用
               _sectionLabel('通用'),
               _buildCard([
@@ -53,20 +39,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   onTap: () => _clearCache(context),
                 ),
               ]),
-              const SizedBox(height: 16),
-
-              // 账号（仅登录后）
-              if (auth.isLoggedIn) ...[
-                _sectionLabel('账号'),
-                _buildCard([
-                  _arrowRow(
-                    icon: Icons.lock_outline_rounded,
-                    iconColor: const Color(0xFF8B5CF6),
-                    label: '账号注销',
-                    onTap: () => _confirmDeleteAccount(context, auth),
-                  ),
-                ]),
-              ],
             ],
           );
         },
@@ -98,36 +70,6 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           );
         }).toList(),
-      ),
-    );
-  }
-
-  Widget _switchRow({
-    required IconData icon,
-    required Color iconColor,
-    required String label,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-            child: Icon(icon, size: 18, color: iconColor),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary))),
-          Switch(
-            value: value,
-            onChanged: onChanged,
-            activeTrackColor: AppColors.primary,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-        ],
       ),
     );
   }
@@ -167,46 +109,28 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _clearCache(BuildContext context) {
-    showDialog(
+    AppDialog.show(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: const Text('清除缓存'),
-        content: const Text('清除缓存不会影响您的账号数据，确定继续吗？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('缓存已清除'), duration: Duration(seconds: 2)));
-            },
-            child: const Text('清除', style: TextStyle(color: Color(0xFFFF7A45))),
-          ),
-        ],
-      ),
+      title: '清除缓存',
+      message: '清除缓存不会影响您的账号数据，确定继续吗？',
+      actions: [
+        AppDialogAction(
+          text: '取消',
+          style: AppDialogActionStyle.cancel,
+          onPressed: () => Navigator.pop(context),
+        ),
+        AppDialogAction(
+          text: '清除',
+          style: AppDialogActionStyle.destructive,
+          onPressed: () {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('缓存已清除'), duration: Duration(seconds: 2)),
+            );
+          },
+        ),
+      ],
     );
   }
 
-  void _confirmDeleteAccount(BuildContext context, AuthProvider auth) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: const Text('注销账号'),
-        content: const Text('注销后账号数据将永久删除，无法恢复。确定要注销吗？'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('取消')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('注销功能即将上线'), duration: Duration(seconds: 2)),
-              );
-            },
-            child: const Text('注销', style: TextStyle(color: Color(0xFFFF4D4F))),
-          ),
-        ],
-      ),
-    );
-  }
 }

@@ -30,6 +30,8 @@ dependencies:
   pointycastle: ^3.9.1
   # URL 启动
   url_launcher: ^6.3.1
+  # 图片选择
+  image_picker: ^1.1.2
 
 dev_dependencies:
   flutter_test:
