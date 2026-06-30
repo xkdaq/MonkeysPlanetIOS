@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
 import '../../constants/legal_urls.dart';
 
-/// 关于我们页（参考 Android 版 AboutActivity）
 class AboutPage extends StatelessWidget {
   const AboutPage({super.key});
 
@@ -18,67 +18,146 @@ class AboutPage extends StatelessWidget {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 32),
         children: [
-          const SizedBox(height: 24),
-          // App 图标
+          const SizedBox(height: 48),
+
+          // App 图标 + 名称
           Center(
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                color: AppColors.primary,
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: const Icon(Icons.public, color: Colors.white, size: 44),
+            child: Column(
+              children: [
+                Container(
+                  width: 88,
+                  height: 88,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(22),
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF07C160), Color(0xFF06AE56)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: const [
+                      BoxShadow(color: Color(0x3007C160), blurRadius: 16, offset: Offset(0, 6)),
+                    ],
+                  ),
+                  child: Center(
+                    child: Image.asset(
+                      'assets/images/mine.png',
+                      width: 50,
+                      height: 50,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.school_rounded, color: Colors.white, size: 48),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  '猴哥星球',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.textPrimary),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF0F0F0),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Text('Version 1.0.0', style: TextStyle(fontSize: 13, color: AppColors.textHint)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 40),
+
+          // 简介
+          Container(
+            padding: const EdgeInsets.all(18),
+            decoration: BoxDecoration(
+              color: AppColors.bgWhite,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 2))],
+            ),
+            child: const Text(
+              '猴哥星球是一款专业的在线刷题学习平台，致力于帮助用户高效备考、巩固知识。我们提供丰富的题库资源和智能练习系统，让每一次学习都更有价值。',
+              style: TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.7),
             ),
           ),
           const SizedBox(height: 16),
-          const Center(
-            child: Text(
-              '猴哥星球',
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-                color: AppColors.textPrimary,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          const Center(
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(fontSize: 14, color: AppColors.textHint),
-            ),
-          ),
-          const SizedBox(height: 32),
 
-          // 链接
-          _buildLinkItem(
-            context,
-            '用户服务协议',
-            LegalUrls.userAgreement,
+          // 法律链接
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.bgWhite,
+              borderRadius: BorderRadius.circular(14),
+              boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 10, offset: Offset(0, 2))],
+            ),
+            child: Column(
+              children: [
+                _buildLinkRow(
+                  context,
+                  icon: Icons.description_outlined,
+                  label: '用户服务协议',
+                  url: LegalUrls.userAgreement,
+                ),
+                Container(height: 0.5, color: AppColors.bgDivider, margin: const EdgeInsets.only(left: 56)),
+                _buildLinkRow(
+                  context,
+                  icon: Icons.security_outlined,
+                  label: '隐私政策',
+                  url: LegalUrls.privacyPolicy,
+                ),
+              ],
+            ),
           ),
-          const Divider(indent: 16),
-          _buildLinkItem(
-            context,
-            '隐私政策',
-            LegalUrls.privacyPolicy,
+          const SizedBox(height: 40),
+
+          const Center(
+            child: Text(
+              '© 2024 猴哥星球 All Rights Reserved',
+              style: TextStyle(fontSize: 12, color: AppColors.textHint),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildLinkItem(BuildContext context, String title, String url) {
-    return ListTile(
-      title: Text(title, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary)),
-      trailing: const Icon(Icons.open_in_new, color: AppColors.textHint, size: 18),
-      onTap: () {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('打开: $url')),
-        );
-      },
+  Widget _buildLinkRow(BuildContext context, {required IconData icon, required String label, required String url}) {
+    return GestureDetector(
+      onTap: () => _openUrl(context, url),
+      child: Container(
+        color: Colors.transparent,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: AppColors.primaryLight,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(icon, size: 18, color: AppColors.primary),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary))),
+            const Icon(Icons.open_in_new, size: 16, color: AppColors.textHint),
+          ],
+        ),
+      ),
     );
+  }
+
+  Future<void> _openUrl(BuildContext context, String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('无法打开链接，请检查网络'), duration: Duration(seconds: 2)),
+        );
+      }
+    }
   }
 }

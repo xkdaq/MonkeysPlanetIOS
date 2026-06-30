@@ -10,6 +10,7 @@ import 'change_password_page.dart';
 import 'study_records_page.dart';
 import 'about_page.dart';
 import 'feedback_page.dart';
+import 'settings_page.dart';
 
 class ProfilePage extends StatelessWidget {
   const ProfilePage({super.key});
@@ -66,7 +67,7 @@ class ProfilePage extends StatelessWidget {
                 _MenuItem(
                   imagePath: 'assets/images/mine-setting.png',
                   label: '设置',
-                  onTap: () {},
+                  onTap: () => _navigate(context, const SettingsPage()),
                 ),
                 _MenuItem(
                   imagePath: 'assets/images/mine-about-us.png',

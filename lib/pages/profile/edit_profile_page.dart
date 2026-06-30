@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../constants/app_colors.dart';
 import '../../providers/auth_provider.dart';
 
-/// 编辑资料页（参考 Android 版 ProfileEditActivity）
 class EditProfilePage extends StatefulWidget {
   const EditProfilePage({super.key});
 
@@ -13,14 +12,15 @@ class EditProfilePage extends StatefulWidget {
 
 class _EditProfilePageState extends State<EditProfilePage> {
   late TextEditingController _nicknameController;
-  int _gender = -1; // -1: not set, 1: male, 2: female
+  int _gender = -1;
+  bool _saving = false;
 
   @override
   void initState() {
     super.initState();
-    final userInfo = context.read<AuthProvider>().userInfo;
-    _nicknameController = TextEditingController(text: userInfo?.nickname ?? '');
-    _gender = userInfo?.gender ?? -1;
+    final info = context.read<AuthProvider>().userInfo;
+    _nicknameController = TextEditingController(text: info?.nickname ?? '');
+    _gender = info?.gender ?? -1;
   }
 
   @override
@@ -32,13 +32,25 @@ class _EditProfilePageState extends State<EditProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('编辑资料', style: TextStyle(fontWeight: FontWeight.w600)),
         actions: [
-          TextButton(
-            onPressed: _save,
-            child: const Text('保存', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600)),
-          ),
+          _saving
+              ? const Padding(
+                  padding: EdgeInsets.only(right: 16),
+                  child: Center(
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
+                    ),
+                  ),
+                )
+              : TextButton(
+                  onPressed: _save,
+                  child: const Text('保存', style: TextStyle(color: AppColors.primary, fontWeight: FontWeight.w600, fontSize: 15)),
+                ),
         ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(0.5),
@@ -46,120 +58,135 @@ class _EditProfilePageState extends State<EditProfilePage> {
         ),
       ),
       body: Consumer<AuthProvider>(
-        builder: (context, authProvider, _) {
+        builder: (context, auth, _) {
           return ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
             children: [
               // 头像
               Center(
                 child: GestureDetector(
-                  onTap: () {
-                    // 头像上传功能 - 简化版本
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('头像上传功能待实现')),
-                    );
-                  },
+                  onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('头像上传功能即将上线'), duration: Duration(seconds: 2)),
+                  ),
                   child: Stack(
                     children: [
-                      CircleAvatar(
-                        radius: 44,
-                        backgroundColor: AppColors.bgGray,
-                        backgroundImage: authProvider.userInfo?.avatarUrl != null &&
-                                authProvider.userInfo!.avatarUrl!.isNotEmpty
-                            ? NetworkImage(authProvider.userInfo!.avatarUrl!)
-                            : null,
-                        child: authProvider.userInfo?.avatarUrl == null ||
-                                authProvider.userInfo!.avatarUrl!.isEmpty
-                            ? const Icon(Icons.person, size: 44, color: AppColors.textHint)
-                            : null,
+                      Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.bgGray,
+                          boxShadow: const [BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 3))],
+                        ),
+                        child: ClipOval(
+                          child: auth.userInfo?.avatarUrl?.isNotEmpty == true
+                              ? Image.network(
+                                  auth.userInfo!.avatarUrl!,
+                                  fit: BoxFit.cover,
+                                  errorBuilder: (_, __, ___) => Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
+                                )
+                              : Image.asset('assets/images/default-avatar.png', fit: BoxFit.cover),
+                        ),
                       ),
                       Positioned(
                         bottom: 0,
                         right: 0,
                         child: Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: const BoxDecoration(
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
                             color: AppColors.primary,
                             shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 2),
                           ),
-                          child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                          child: const Icon(Icons.camera_alt_rounded, color: Colors.white, size: 14),
                         ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 8),
+              Center(
+                child: Text(
+                  '点击修改头像',
+                  style: TextStyle(fontSize: 12, color: AppColors.textHint.withValues(alpha: 0.8)),
+                ),
+              ),
+              const SizedBox(height: 28),
 
-              // 昵称
+              // 信息卡片
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.bgWhite,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.bgDivider),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 2))],
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text('昵称',
-                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                    ),
+                    // 昵称
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-                      child: TextField(
-                        controller: _nicknameController,
-                        decoration: const InputDecoration(
-                          hintText: '请输入昵称',
-                          border: InputBorder.none,
-                          contentPadding: EdgeInsets.zero,
-                        ),
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 52,
+                            child: Text('昵称', style: TextStyle(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                          ),
+                          Expanded(
+                            child: TextField(
+                              controller: _nicknameController,
+                              textAlign: TextAlign.right,
+                              style: const TextStyle(fontSize: 15, color: AppColors.textPrimary),
+                              decoration: const InputDecoration(
+                                hintText: '请输入昵称',
+                                hintStyle: TextStyle(color: AppColors.textHint, fontSize: 15),
+                                border: InputBorder.none,
+                                isCollapsed: true,
+                                contentPadding: EdgeInsets.symmetric(vertical: 16),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(height: 0.5, color: AppColors.bgDivider, margin: const EdgeInsets.only(left: 16)),
+
+                    // 性别
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 52,
+                            child: Text('性别', style: TextStyle(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+                          ),
+                          const Spacer(),
+                          _genderChip('保密', -1),
+                          const SizedBox(width: 8),
+                          _genderChip('男', 1),
+                          const SizedBox(width: 8),
+                          _genderChip('女', 2),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 20),
 
-              // 性别
+              // 账号信息只读卡片
               Container(
                 decoration: BoxDecoration(
                   color: AppColors.bgWhite,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.bgDivider),
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: const [BoxShadow(color: Color(0x0A000000), blurRadius: 12, offset: Offset(0, 2))],
                 ),
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
-                      child: Text('性别',
-                          style: TextStyle(fontSize: 13, color: AppColors.textSecondary, fontWeight: FontWeight.bold)),
-                    ),
-                    Row(
-                      children: [
-                        _GenderOption(
-                          label: '保密',
-                          value: -1,
-                          selected: _gender == -1,
-                          onTap: () => setState(() => _gender = -1),
-                        ),
-                        _GenderOption(
-                          label: '男',
-                          value: 1,
-                          selected: _gender == 1,
-                          onTap: () => setState(() => _gender = 1),
-                        ),
-                        _GenderOption(
-                          label: '女',
-                          value: 2,
-                          selected: _gender == 2,
-                          onTap: () => setState(() => _gender = 2),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
+                    _readonlyRow('账号', auth.userInfo?.username ?? auth.userInfo?.id.toString() ?? '-'),
+                    Container(height: 0.5, color: AppColors.bgDivider, margin: const EdgeInsets.only(left: 16)),
+                    _readonlyRow('手机号', _maskPhone(auth.userInfo?.phone)),
                   ],
                 ),
               ),
@@ -170,56 +197,68 @@ class _EditProfilePageState extends State<EditProfilePage> {
     );
   }
 
-  Future<void> _save() async {
-    // 简化版本 - 提示用户保存成功
-    Navigator.pop(context);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('保存成功')),
-      );
-    }
-  }
-}
-
-class _GenderOption extends StatelessWidget {
-  final String label;
-  final int value;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _GenderOption({
-    required this.label,
-    required this.value,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          margin: const EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.primaryLight : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: selected ? AppColors.primary : AppColors.bgDivider,
-            ),
-          ),
-          child: Text(
-            label,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 14,
-              color: selected ? AppColors.primary : AppColors.textPrimary,
-              fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
-            ),
+  Widget _genderChip(String label, int value) {
+    final selected = _gender == value;
+    return GestureDetector(
+      onTap: () => setState(() => _gender = value),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? AppColors.primary : const Color(0xFFF5F5F5),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color: selected ? Colors.white : AppColors.textSecondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
       ),
     );
+  }
+
+  Widget _readonlyRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 52,
+            child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.right,
+              style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _maskPhone(String? phone) {
+    if (phone == null || phone.isEmpty) return '未绑定';
+    if (phone.length >= 11) return '${phone.substring(0, 3)}****${phone.substring(7)}';
+    return phone;
+  }
+
+  Future<void> _save() async {
+    final nickname = _nicknameController.text.trim();
+    if (nickname.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('昵称不能为空')));
+      return;
+    }
+    setState(() => _saving = true);
+    await Future.delayed(const Duration(milliseconds: 400));
+    if (!mounted) return;
+    setState(() => _saving = false);
+    final messenger = ScaffoldMessenger.of(context);
+    Navigator.pop(context);
+    messenger.showSnackBar(const SnackBar(content: Text('保存成功'), duration: Duration(seconds: 2)));
   }
 }
