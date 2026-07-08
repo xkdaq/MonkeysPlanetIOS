@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'auth_storage.dart';
 import 'http_client.dart';
 
@@ -52,13 +53,16 @@ class DeviceInfoService {
         iosInfo.identifierForVendor ??
         'ios_${DateTime.now().millisecondsSinceEpoch}';
 
+    // 从 PackageInfo 获取真实版本号
+    final packageInfo = await PackageInfo.fromPlatform();
+
     return {
       'deviceId': deviceId,
       'platform': 'ios',
-      'deviceName': iosInfo.name ?? 'iPhone',
-      'deviceModel': iosInfo.model ?? 'Unknown',
-      'osVersion': 'iOS ${iosInfo.systemVersion ?? 'Unknown'}',
-      'appVersion': '1.0.0', // 后续可从 PackageInfo 获取
+      'deviceName': iosInfo.name,
+      'deviceModel': iosInfo.model,
+      'osVersion': 'iOS ${iosInfo.systemVersion}',
+      'appVersion': '${packageInfo.version}+${packageInfo.buildNumber}',
     };
   }
 }
