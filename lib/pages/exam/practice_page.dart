@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/app_colors.dart';
 import '../../models/question.dart';
 import '../../providers/exam_provider.dart';
+import '../../services/auth_storage.dart';
+import '../../services/visit_report_service.dart';
 import '../profile/login_page.dart';
 import '../../widgets/html_content.dart';
 import '../../widgets/loading_indicator.dart';
@@ -89,6 +91,11 @@ class _PracticePageState extends State<PracticePage> {
         );
         if (qs != null) {
           _questions = qs;
+          // 开始练习成功，上报
+          VisitReportService(AuthStorage()).reportPracticeStart(
+            pagePath: 'practice/${widget.bankId}',
+            bankId: widget.bankId,
+          );
         } else {
           final err = provider.practiceError ?? '';
           if (err.contains('请先登录') || err.contains('未登录')) {
@@ -1037,6 +1044,11 @@ class _PracticePageState extends State<PracticePage> {
         wrongCount: _wrongCount,
         totalCount: _correctCount + _wrongCount,
         duration: duration,
+      );
+      // 完成练习，上报
+      VisitReportService(AuthStorage()).reportPracticeComplete(
+        pagePath: 'practice/${widget.bankId}',
+        bankId: widget.bankId,
       );
     }
     if (mounted) {

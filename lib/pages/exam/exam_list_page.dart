@@ -4,6 +4,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../constants/app_colors.dart';
 import '../../models/bank.dart';
 import '../../providers/exam_provider.dart';
+import '../../services/auth_storage.dart';
+import '../../services/visit_report_service.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/loading_indicator.dart';
 import 'bank_detail_page.dart';
@@ -21,6 +23,8 @@ class _ExamListPageState extends State<ExamListPage> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<ExamProvider>().loadBanks();
+      // 上报题库首页访问
+      VisitReportService(AuthStorage()).reportExamPageView(pagePath: 'exam/list');
     });
   }
 
