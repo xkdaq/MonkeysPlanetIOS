@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'http_client.dart';
@@ -50,18 +49,17 @@ class VersionCheckService {
       final currentVersionCode = int.tryParse(packageInfo.buildNumber) ?? 1;
 
       if (kDebugMode) {
-        print('[VersionCheck] 当前版本: ${packageInfo.version}'
-            ' (versionCode=$currentVersionCode)');
+        print(
+          '[VersionCheck] 当前版本: ${packageInfo.version}'
+          ' (versionCode=$currentVersionCode)',
+        );
       }
 
       // 调用后端接口
       final dio = HttpClient(_authStorage).dio;
       final response = await dio.get(
         'api/version/check',
-        queryParameters: {
-          'platform': 'ios',
-          'versionCode': currentVersionCode,
-        },
+        queryParameters: {'platform': 'ios', 'versionCode': currentVersionCode},
       );
 
       final data = response.data as Map<String, dynamic>?;
@@ -80,9 +78,11 @@ class VersionCheckService {
 
       final info = VersionUpdateInfo.fromJson(result);
       if (kDebugMode) {
-        print('[VersionCheck] 发现新版本: ${info.versionName}'
-            ' (versionCode=${info.versionCode}, '
-            '${info.isForced ? "强制" : "可选"}更新)');
+        print(
+          '[VersionCheck] 发现新版本: ${info.versionName}'
+          ' (versionCode=${info.versionCode}, '
+          '${info.isForced ? "强制" : "可选"}更新)',
+        );
       }
       return info;
     } catch (e) {
