@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
 import '../services/auth_storage.dart';
 import '../services/device_info_service.dart';
+import '../services/version_check_service.dart';
+import '../widgets/update_dialog.dart';
 import 'main_tabs.dart';
 
 class SplashPage extends StatefulWidget {
@@ -27,6 +29,10 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   bool _authReady = false;
   bool _minTimeDone = false;
   bool _navigating = false;
+
+  // 版本检查
+  bool _versionChecked = false;
+  VersionUpdateInfo? _updateInfo;
 
   @override
   void initState() {
@@ -62,14 +68,32 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkAuth();
-      _registerDevice(); // ★ 启动时并行注册设备（不阻塞导航）
+      _registerDevice();
+      _checkVersion(); // ★ 启动时检查版本更新
     });
   }
 
-  /// ★ 注册设备信息（不阻塞启动流程）
+  /// 注册设备信息（不阻塞启动流程）
   void _registerDevice() {
     final authStorage = AuthStorage();
     DeviceInfoService(authStorage).register();
+  }
+
+  /// 检查版本更新（不阻塞启动流程，但强制更新会阻塞进主页面）
+  void _checkVersion() {
+    final authStorage = AuthStorage();
+    VersionCheckService(authStorage).check().then((info) {
+      if (!mounted) return;
+      setState(() {
+        _versionChecked = true;
+        _updateInfo = info;
+      });
+      _maybeNavigate();
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() => _versionChecked = true);
+      _maybeNavigate();
+    });
   }
 
   void _checkAuth() {
@@ -92,7 +116,31 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
   }
 
   Future<void> _maybeNavigate() async {
-    if (!_authReady || !_minTimeDone || _navigating || !mounted) return;
+    if (!_authReady || !_minTimeDone || !_versionChecked || _navigating || !mounted) return;
+
+    // 有版本更新，先弹框
+    if (_updateInfo != null) {
+      final updateInfo = _updateInfo!;
+      if (updateInfo.isForced) {
+        // 强制更新：弹框阻塞，用户必须点「立即更新」
+        _navigating = true;
+        final shouldUpdate = await UpdateDialog.show(context: context, info: updateInfo);
+        if (shouldUpdate == true && mounted) {
+          await UpdateDialog.openDownloadUrl(updateInfo.downloadUrl);
+        }
+        // 不进主页面，用户会被卡在启动页（下次进入 App 会重新检查）
+        _navigating = false;
+        return;
+      } else {
+        // 可选更新：弹框但不阻塞导航
+        UpdateDialog.show(context: context, info: updateInfo).then((shouldUpdate) {
+          if (shouldUpdate == true) {
+            UpdateDialog.openDownloadUrl(updateInfo.downloadUrl);
+          }
+        });
+      }
+    }
+
     _navigating = true;
     await _exitCtrl.forward();
     if (!mounted) return;
@@ -122,7 +170,6 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
       child: Scaffold(
         backgroundColor: const Color(0xFFF5F2ED),
         body: Stack(
-          // ★ 关键：StackFit.expand 让所有子组件撑满全屏
           fit: StackFit.expand,
           children: [
             // 底部装饰光晕
