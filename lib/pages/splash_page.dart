@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/auth_provider.dart';
+import '../services/auth_storage.dart';
+import '../services/device_info_service.dart';
 import 'main_tabs.dart';
 
 class SplashPage extends StatefulWidget {
@@ -58,7 +60,16 @@ class _SplashPageState extends State<SplashPage> with TickerProviderStateMixin {
       }
     });
 
-    WidgetsBinding.instance.addPostFrameCallback((_) => _checkAuth());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAuth();
+      _registerDevice(); // ★ 启动时并行注册设备（不阻塞导航）
+    });
+  }
+
+  /// ★ 注册设备信息（不阻塞启动流程）
+  void _registerDevice() {
+    final authStorage = AuthStorage();
+    DeviceInfoService(authStorage).register();
   }
 
   void _checkAuth() {

@@ -99,6 +99,7 @@ class _SignInterceptor extends Interceptor {
 }
 
 /// Token 拦截器（参考 Android 版 TokenInterceptor.kt）
+/// 同时附加 X-Client-Type 和 X-Device-Id 公共参数
 class _TokenInterceptor extends Interceptor {
   final AuthStorage _authStorage;
 
@@ -109,6 +110,18 @@ class _TokenInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    // 附加客户端类型
+    options.headers['X-Client-Type'] = 'ios';
+
+    // 附加设备 ID（如果已注册）
+    try {
+      final deviceId = await _authStorage.getDeviceId();
+      if (deviceId != null && deviceId.isNotEmpty) {
+        options.headers['X-Device-Id'] = deviceId;
+      }
+    } catch (_) {}
+
+    // 附加 Token
     try {
       final token = await _authStorage.getToken();
       if (token != null && token.isNotEmpty) {

@@ -7,6 +7,7 @@ import '../models/user_info.dart';
 class AuthStorage {
   static const _tokenKey = 'auth_token';
   static const _userInfoKey = 'user_info';
+  static const _deviceIdKey = 'device_id';
 
   final FlutterSecureStorage _secureStorage;
 
@@ -40,6 +41,18 @@ class AuthStorage {
       }
     }
     return null;
+  }
+
+  /// 保存设备 ID
+  Future<void> saveDeviceId(String deviceId) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_deviceIdKey, deviceId);
+  }
+
+  /// 获取设备 ID
+  Future<String?> getDeviceId() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_deviceIdKey);
   }
 
   /// 清除登录状态

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../models/user_info.dart';
 import '../services/auth_storage.dart';
@@ -42,21 +43,30 @@ class AuthProvider with ChangeNotifier {
   String get displayName => _userInfo?.nickname ?? '猴哥星球用户';
   String get displayId => _userInfo != null ? 'ID: 用户_${_userInfo!.id}' : '';
 
-  /// 初始化：检查登录状态
+  /// 初始化：检查登录状态，并验证 token 有效性（防止 iOS Keychain 残留旧 token）
   Future<void> _init() async {
     _isLoading = true;
     try {
       _isLoggedIn = await _authStorage.isLoggedIn();
       if (_isLoggedIn) {
         _userInfo = await _authStorage.getUserInfo();
-        // 尝试从服务器获取最新用户信息
+        // ★ 验证 token 有效性：如果 token 已过期或被清除，清理本地状态
         try {
           final result = await _userService.getUserInfo();
           if (result.isSuccess && result.data != null) {
             _userInfo = result.data;
             await _authStorage.saveUserInfo(result.data!);
+          } else if (result.code == 401 || result.code == 500 ||
+                     (result.msg?.contains('过期') == true) ||
+                     (result.msg?.contains('未登录') == true)) {
+            // token 失效，清理本地状态
+            await _authStorage.clearLoginState();
+            _isLoggedIn = false;
+            _userInfo = null;
           }
-        } catch (_) {}
+        } catch (_) {
+          // 网络异常时保持现有登录状态，不做清理
+        }
       }
     } catch (e) {
       _errorMessage = e.toString();
@@ -72,7 +82,12 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _userService.login(phone, password);
+      final deviceId = await _authStorage.getDeviceId();
+      final result = await _userService.login(
+        phone, password,
+        clientType: 'ios',
+        deviceId: deviceId,
+      );
       if (result.isSuccess && result.data != null) {
         // 保存 token 和用户信息
         await _authStorage.saveToken(result.data!.token);
@@ -159,10 +174,13 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
+      final deviceId = await _authStorage.getDeviceId();
       final result = await _userService.register(
         phone: phone,
         code: code,
         password: password,
+        clientType: 'ios',
+        deviceId: deviceId,
       );
       if (result.isSuccess && result.data != null) {
         await _authStorage.saveToken(result.data!.token);

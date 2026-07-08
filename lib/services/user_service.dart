@@ -12,10 +12,15 @@ class UserService {
   }
 
   /// 手机号密码登录
-  Future<ApiResponse<AuthResult>> login(String phone, String password) async {
+  Future<ApiResponse<AuthResult>> login(String phone, String password, {String? clientType, String? deviceId}) async {
     final response = await _client.post(
       'mp/auth/login/phone',
-      data: {'phone': phone, 'password': password},
+      data: {
+        'phone': phone,
+        'password': password,
+        if (clientType != null) 'clientType': clientType,
+        if (deviceId != null) 'deviceId': deviceId,
+      },
     );
     return ApiResponse.fromJson(
       response.data as Map<String, dynamic>,
@@ -37,6 +42,8 @@ class UserService {
     required String phone,
     required String code,
     required String password,
+    String? clientType,
+    String? deviceId,
   }) async {
     final response = await _client.post(
       'mp/auth/register',
@@ -44,6 +51,8 @@ class UserService {
         'phone': phone,
         'code': code,
         'password': password,
+        if (clientType != null) 'clientType': clientType,
+        if (deviceId != null) 'deviceId': deviceId,
       },
     );
     return ApiResponse.fromJson(
