@@ -33,14 +33,8 @@ class DeviceInfoService {
 
       final data = response.data as Map<String, dynamic>?;
       if (data != null && data['code'] == 0) {
-        // 后端返回的设备 ID
-        final returnedDeviceId = data['data']?['deviceId'] as String?;
-        if (returnedDeviceId != null && returnedDeviceId.isNotEmpty) {
-          await _authStorage.saveDeviceId(returnedDeviceId);
-        } else {
-          // 如果后端没有返回 deviceId，使用本地生成的
-          await _authStorage.saveDeviceId(deviceInfo['deviceId'] as String);
-        }
+        // 注册成功，保存本地 deviceId
+        await _authStorage.saveDeviceId(deviceInfo['deviceId'] as String);
       }
     } catch (e) {
       // 静默失败：不影响 App 启动流程

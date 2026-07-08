@@ -58,39 +58,39 @@ class AppDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 0,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 52),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 40),
       child: Container(
-        width: 270,
+        width: 300,
         decoration: BoxDecoration(
           color: Colors.white,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // 标题 + 内容区
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+              padding: const EdgeInsets.fromLTRB(24, 26, 24, 22),
               child: Column(
                 children: [
                   Text(
                     title,
                     textAlign: TextAlign.center,
                     style: const TextStyle(
-                      fontSize: 17,
+                      fontSize: 18,
                       fontWeight: FontWeight.w600,
                       color: Color(0xFF1D1D1F),
                     ),
                   ),
                   if (message != null) ...[
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
                     Text(
                       message!,
                       textAlign: TextAlign.center,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 15,
                         color: Color(0xFF6C6C70),
-                        height: 1.6,
+                        height: 1.5,
                       ),
                     ),
                   ],
@@ -117,11 +117,11 @@ class AppDialog extends StatelessWidget {
     if (actions.length == 2) {
       // 两个按钮横排
       return SizedBox(
-        height: 44,
+        height: 52,
         child: Row(
           children: [
             Expanded(child: _buildActionButton(actions[0])),
-            Container(width: 0.5, height: 44, color: const Color(0xFFD1D1D6)),
+            Container(width: 0.5, height: 52, color: const Color(0xFFD1D1D6)),
             Expanded(child: _buildActionButton(actions[1])),
           ],
         ),
@@ -134,8 +134,9 @@ class AppDialog extends StatelessWidget {
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (e.key > 0) Container(height: 0.5, color: const Color(0xFFD1D1D6)),
-            SizedBox(height: 44, child: _buildActionButton(e.value)),
+            if (e.key > 0)
+              Container(height: 0.5, color: const Color(0xFFD1D1D6)),
+            SizedBox(height: 52, child: _buildActionButton(e.value)),
           ],
         );
       }).toList(),
@@ -165,10 +166,13 @@ class AppDialog extends StatelessWidget {
       style: TextButton.styleFrom(
         foregroundColor: color,
         shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        minimumSize: const Size(double.infinity, 44),
+        minimumSize: const Size(double.infinity, 52),
         padding: EdgeInsets.zero,
       ),
-      child: Text(action.text, style: TextStyle(fontSize: 17, color: color, fontWeight: weight)),
+      child: Text(
+        action.text,
+        style: TextStyle(fontSize: 16, color: color, fontWeight: weight),
+      ),
     );
   }
 }

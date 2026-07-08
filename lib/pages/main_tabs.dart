@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../services/auth_storage.dart';
+import '../services/version_check_service.dart';
+import '../widgets/update_dialog.dart';
 import 'exam/exam_list_page.dart';
 import 'profile/profile_page.dart';
 
@@ -17,6 +20,36 @@ class _MainTabsState extends State<MainTabs> {
     ExamListPage(),
     ProfilePage(),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    // 进主页后检查版本更新
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkVersion());
+  }
+
+  void _checkVersion() {
+    VersionCheckService(AuthStorage()).check().then((info) {
+      if (!mounted || info == null) return;
+
+      if (info.isForced) {
+        // 强制更新：弹框不可关闭，用户必须点更新
+        UpdateDialog.show(context: context, info: info).then((shouldUpdate) {
+          if (shouldUpdate == true) {
+            UpdateDialog.openDownloadUrl(info.downloadUrl);
+          }
+        });
+      } else {
+        // 可选更新：用户可忽略
+        UpdateDialog.show(context: context, info: info).then((shouldUpdate) {
+          if (shouldUpdate == true) {
+            UpdateDialog.openDownloadUrl(info.downloadUrl);
+          }
+        });
+      }
+    });
+    // 检查失败静默处理
+  }
 
   @override
   Widget build(BuildContext context) {

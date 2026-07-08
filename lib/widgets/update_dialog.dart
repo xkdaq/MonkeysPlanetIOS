@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:flutter/foundation.dart';
 import '../services/version_check_service.dart';
 import 'app_dialog.dart';
 
@@ -54,11 +55,31 @@ class UpdateDialog {
   }
 
   /// 打开下载链接（App Store 或外部浏览器）
+  /// 
+  /// 注意：App Store 链接在 iOS 模拟器上无法打开（没有 App Store 应用），
+  /// 在真机上会正常跳转到 App Store。无法打开时降级为在 Safari 中浏览网页版。
   static Future<bool> openDownloadUrl(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null) return false;
+
     try {
-      return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      // 先尝试用外部应用打开（真机上会唤起 App Store）
+      if (await canLaunchUrl(uri)) {
+        return await launchUrl(uri, mode: LaunchMode.externalApplication);
+      }
+
+      // 外部应用不可用（如模拟器），降级为在 Safari 中打开网页
+      if (kDebugMode) {
+        print('[UpdateDialog] 外部应用无法打开，降级为 Safari 内打开');
+      }
+      return await launchUrl(
+        uri,
+        mode: LaunchMode.inAppWebView,
+        webViewConfiguration: const WebViewConfiguration(
+          enableJavaScript: true,
+          enableDomStorage: true,
+        ),
+      );
     } catch (_) {
       return false;
     }
