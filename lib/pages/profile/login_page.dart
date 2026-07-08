@@ -202,8 +202,7 @@ class _LoginPageState extends State<LoginPage> {
       height: 50,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E9E5)),
+        color: const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(25),
       ),
       child: TextField(
@@ -213,7 +212,7 @@ class _LoginPageState extends State<LoginPage> {
         obscureText: obscure,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFFC7C7C7), fontSize: 14),
+          hintStyle: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           counterText: '',
@@ -229,8 +228,7 @@ class _LoginPageState extends State<LoginPage> {
       height: 50,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E9E5)),
+        color: const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(25),
       ),
       child: Row(
@@ -241,7 +239,7 @@ class _LoginPageState extends State<LoginPage> {
               obscureText: !_passwordVisible,
               decoration: const InputDecoration(
                 hintText: '密码',
-                hintStyle: TextStyle(color: Color(0xFFC7C7C7), fontSize: 14),
+                hintStyle: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
               ),

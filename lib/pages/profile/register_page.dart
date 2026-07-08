@@ -207,8 +207,7 @@ class _RegisterPageState extends State<RegisterPage> {
       height: 50,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E9E5)),
+        color: const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(25),
       ),
       child: TextField(
@@ -217,7 +216,7 @@ class _RegisterPageState extends State<RegisterPage> {
         maxLength: maxLength,
         decoration: InputDecoration(
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFFC7C7C7), fontSize: 14),
+          hintStyle: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           counterText: '',
@@ -232,8 +231,7 @@ class _RegisterPageState extends State<RegisterPage> {
       height: 50,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E9E5)),
+        color: const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(25),
       ),
       child: Row(
@@ -245,7 +243,7 @@ class _RegisterPageState extends State<RegisterPage> {
               maxLength: 6,
               decoration: const InputDecoration(
                 hintText: '验证码',
-                hintStyle: TextStyle(color: Color(0xFFC7C7C7), fontSize: 14),
+                hintStyle: TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 counterText: '',
@@ -282,8 +280,7 @@ class _RegisterPageState extends State<RegisterPage> {
       height: 50,
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border.all(color: const Color(0xFFE3E9E5)),
+        color: const Color(0xFFF5F6F8),
         borderRadius: BorderRadius.circular(25),
       ),
       child: Row(
@@ -295,7 +292,7 @@ class _RegisterPageState extends State<RegisterPage> {
               maxLength: 20,
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: const TextStyle(color: Color(0xFFC7C7C7), fontSize: 14),
+                hintStyle: const TextStyle(color: Color(0xFFAAAAAA), fontSize: 14),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                 counterText: '',

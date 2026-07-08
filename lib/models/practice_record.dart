@@ -60,7 +60,7 @@ class PracticeRecord {
       practiceTypeName: json['practiceTypeName'] as String? ?? '',
       totalCount: json['totalCount'] as int? ?? 0,
       correctCount: json['correctCount'] as int? ?? 0,
-      accuracy: json['accuracy'] as int? ?? 0,
+      accuracy: _parseInt(json['accuracy']),
       duration: json['duration'] as int? ?? 0,
       durationText: json['durationText'] as String? ?? '',
       createTime: json['createTime'] as String? ?? '',
@@ -97,6 +97,14 @@ class PracticeRecordPage {
       totalDurationText: json['totalDurationText'] as String? ?? '',
     );
   }
+}
+
+/// 安全取整（兼容后端返回 int 或 double）
+int _parseInt(dynamic v) {
+  if (v == null) return 0;
+  if (v is int) return v;
+  if (v is double) return v.toInt();
+  return 0;
 }
 
 /// 答题记录（参考 Android 版 AnswerRecord）

@@ -330,26 +330,35 @@ class _StudyRecordsPageState extends State<StudyRecordsPage> {
 
   Widget _buildError(ExamProvider exam) {
     return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Icon(Icons.wifi_off_rounded, size: 48, color: Color(0xFFCCCCCC)),
-          const SizedBox(height: 16),
-          Text(
-            exam.recordsError!,
-            style: const TextStyle(fontSize: 15, color: AppColors.textSecondary),
-          ),
-          const SizedBox(height: 20),
-          ElevatedButton.icon(
-            onPressed: () => exam.loadRecords(),
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('重试'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 48),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.wifi_off_rounded, size: 48, color: Color(0xFFCCCCCC)),
+            const SizedBox(height: 16),
+            Text(
+              exam.recordsError!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 14, color: AppColors.textSecondary, height: 1.5),
             ),
-          ),
-        ],
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 160,
+              height: 44,
+              child: OutlinedButton.icon(
+                onPressed: () => exam.loadRecords(),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('重试', style: TextStyle(fontSize: 15)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

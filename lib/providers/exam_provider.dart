@@ -346,7 +346,7 @@ class ExamProvider with ChangeNotifier {
         _recordsError = result.msg ?? '获取记录失败';
       }
     } catch (e) {
-      _recordsError = '网络异常';
+      _recordsError = _extractError(e, '获取记录失败');
     }
     _recordsLoading = false;
     notifyListeners();

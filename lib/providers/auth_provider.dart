@@ -242,10 +242,29 @@ class AuthProvider with ChangeNotifier {
     await refreshUserInfo();
   }
 
-  /// 上传头像文件（成功后刷新 userInfo）
+  /// 上传头像文件（成功后立即更新本地头像并刷新 userInfo）
   Future<void> uploadAvatar(String filePath) async {
     final result = await _userService.uploadAvatar(filePath);
     if (!result.isSuccess) throw Exception(result.msg ?? '头像上传失败');
+
+    // 上传成功，立即用返回的 URL 更新本地头像（不用等 refreshUserInfo 二次请求）
+    final url = result.data?.url;
+    if (url != null && url.isNotEmpty && _userInfo != null) {
+      _userInfo = UserInfo(
+        id: _userInfo!.id,
+        username: _userInfo!.username,
+        nickname: _userInfo!.nickname,
+        avatarUrl: url,
+        gender: _userInfo!.gender,
+        phone: _userInfo!.phone,
+        hasPassword: _userInfo!.hasPassword,
+        hasPhone: _userInfo!.hasPhone,
+      );
+      await _authStorage.saveUserInfo(_userInfo!);
+      notifyListeners();
+    }
+
+    // 再异步刷新完整用户信息兜底
     await refreshUserInfo();
   }
 

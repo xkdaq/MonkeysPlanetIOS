@@ -122,9 +122,21 @@ class _BindPhonePageState extends State<BindPhonePage> {
       padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
       children: [
         // 说明文字
-        const Text(
-          '绑定手机号后可使用手机号登录，也可用于找回密码',
-          style: TextStyle(fontSize: 13, color: AppColors.textHint, height: 1.6),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.info_outline, size: 16, color: AppColors.textHint),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  '绑定手机号后可使用手机号登录，也可用于找回密码',
+                  style: const TextStyle(fontSize: 13, color: AppColors.textHint, height: 1.6),
+                ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 24),
 
@@ -191,9 +203,10 @@ class _BindPhonePageState extends State<BindPhonePage> {
       child: Row(
         children: [
           SizedBox(
-            width: 52,
+            width: 64,
             child: Text(label, style: const TextStyle(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
           ),
+          const SizedBox(width: 8),
           Expanded(child: child),
         ],
       ),
@@ -206,9 +219,10 @@ class _BindPhonePageState extends State<BindPhonePage> {
       child: Row(
         children: [
           const SizedBox(
-            width: 52,
+            width: 64,
             child: Text('验证码', style: TextStyle(fontSize: 15, color: AppColors.textPrimary, fontWeight: FontWeight.w500)),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: TextField(
               controller: _codeController,
