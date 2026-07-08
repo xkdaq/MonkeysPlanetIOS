@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 /// 题目模型（参考 Android 版 Question）
 /// type: 1-单选 2-多选 3-判断 4-填空 5-问答 6-材料
 class Question {
@@ -32,10 +34,15 @@ class Question {
       answer: json['answer'] as String?,
       analysis: json['analysis'] as String?,
       optionsMap: (json['optionsMap'] as Map<String, dynamic>?)
-          ?.map((k, v) => MapEntry(k, v.toString())),
+          ?.map((k, v) => MapEntry(k, _cleanText(v.toString()))),
       categoryName: json['categoryName'] as String?,
       tags: (json['tags'] as List<dynamic>?)?.map((e) => e.toString()).toList(),
     );
+  }
+
+  /// 清洗文本中 Markdown 风格的转义反引号（\\` → `）
+  static String _cleanText(String text) {
+    return text.replaceAll(r'\`', '`');
   }
 
   /// 获取题型名称
@@ -72,11 +79,11 @@ class Question {
         final decoded = options!;
         // 尝试 JSON 格式
         if (decoded.startsWith('{')) {
-          final map = _parseJsonString(decoded);
-          if (map != null) {
-            return map.entries.toList()
-              ..sort((a, b) => a.key.compareTo(b.key));
-          }
+          final map = jsonDecode(decoded) as Map<String, dynamic>;
+          return map.entries
+              .map((e) => MapEntry(e.key, _cleanText(e.value.toString())))
+              .toList()
+            ..sort((a, b) => a.key.compareTo(b.key));
         }
         // 尝试 A.xxx|B.xxx 格式
         if (decoded.contains('|')) {
@@ -86,10 +93,10 @@ class Question {
               final dotIndex = trimmed.indexOf('.');
               return MapEntry(
                 trimmed.substring(0, dotIndex).trim(),
-                trimmed.substring(dotIndex + 1).trim(),
+                _cleanText(trimmed.substring(dotIndex + 1).trim()),
               );
             }
-            return MapEntry('', trimmed);
+            return MapEntry('', _cleanText(trimmed));
           }).toList();
         }
         // 换行符格式
@@ -102,36 +109,15 @@ class Question {
               final dotIndex = trimmed.indexOf('.');
               return MapEntry(
                 trimmed.substring(0, dotIndex).trim(),
-                trimmed.substring(dotIndex + 1).trim(),
+                _cleanText(trimmed.substring(dotIndex + 1).trim()),
               );
             }
-            return MapEntry('', trimmed);
+            return MapEntry('', _cleanText(trimmed));
           }).toList();
         }
       } catch (_) {}
     }
 
     return [];
-  }
-
-  Map<String, String>? _parseJsonString(String jsonStr) {
-    try {
-      // 简单 JSON 对象解析
-      final result = <String, String>{};
-      final cleaned = jsonStr
-          .replaceAll('{', '')
-          .replaceAll('}', '')
-          .replaceAll('"', '');
-      final pairs = cleaned.split(',');
-      for (final pair in pairs) {
-        final parts = pair.split(':');
-        if (parts.length == 2) {
-          result[parts[0].trim()] = parts[1].trim();
-        }
-      }
-      return result;
-    } catch (_) {
-      return null;
-    }
   }
 }

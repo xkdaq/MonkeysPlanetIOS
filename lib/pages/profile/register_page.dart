@@ -1,7 +1,10 @@
 import 'dart:async';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../constants/app_colors.dart';
+import '../../constants/legal_urls.dart';
 import '../../providers/auth_provider.dart';
 
 class RegisterPage extends StatefulWidget {
@@ -173,11 +176,36 @@ class _RegisterPageState extends State<RegisterPage> {
                 ),
 
                 // 用户协议
-                const Center(
-                  child: Text(
-                    '注册即表示你已阅读并同意用户协议与隐私政策',
-                    style: TextStyle(fontSize: 10, color: Color(0xFFC2C2C2)),
+                Center(
+                  child: RichText(
                     textAlign: TextAlign.center,
+                    text: TextSpan(
+                      style: const TextStyle(fontSize: 10, color: Color(0xFFC2C2C2)),
+                      children: [
+                        const TextSpan(text: '注册即表示你已阅读并同意'),
+                        TextSpan(
+                          text: '用户协议',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.primary,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => _openUrl(LegalUrls.userAgreement),
+                        ),
+                        const TextSpan(text: '与'),
+                        TextSpan(
+                          text: '隐私政策',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: AppColors.primary,
+                            decoration: TextDecoration.underline,
+                          ),
+                          recognizer: TapGestureRecognizer()
+                            ..onTap = () => _openUrl(LegalUrls.privacyPolicy),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -375,6 +403,19 @@ class _RegisterPageState extends State<RegisterPage> {
         Navigator.pop(context);
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('注册成功')));
+      }
+    }
+  }
+
+  Future<void> _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('无法打开链接，请检查网络')),
+        );
       }
     }
   }
